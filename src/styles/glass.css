@@ -1,0 +1,298 @@
+/* ============================================================
+   Liquid Glass material
+   ------------------------------------------------------------
+   A pane is built from four stacked layers, not one blur:
+     1. body      — multi-stop translucent tint + fine grain
+     2. backdrop  — blur + saturate + brightness on what is behind
+     3. ::after   — specular sheen that tracks the pointer, plus a
+                    soft colour bleed picked up from below
+     4. ::before  — 1px refraction ring (conic, chromatic) masked to
+                    the edge only, giving the lit-rim / inner-shadow read
+   Layer order: sheen (0) → content (1) → rim (2)
+   ============================================================ */
+
+.glass {
+  --gx: 50%;
+  --gy: 0%;
+  --sheen: 0.62;
+  --rim: 0.8;
+  --grain: var(--g-noise);
+  --radius: var(--r-lg);
+
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--radius);
+  color: var(--ink-1);
+
+  /* opt-in extra opacity, used when the content behind gets busy */
+  background-color: var(--g-solid, transparent);
+
+  /* 1 + fine grain so the surface never reads as flat plastic */
+  background-image:
+    var(--grain-tex),
+    linear-gradient(
+      152deg,
+      var(--g-tint-a) 0%,
+      var(--g-tint-b) 46%,
+      var(--g-tint-c) 100%
+    );
+  background-size: 130px 130px, auto;
+  background-blend-mode: soft-light, normal;
+
+  /* 2 */
+  -webkit-backdrop-filter: blur(var(--g-blur)) saturate(var(--g-sat))
+    brightness(var(--g-bright));
+  backdrop-filter: blur(var(--g-blur)) saturate(var(--g-sat))
+    brightness(var(--g-bright));
+
+  /* inner light on the top edge, shade on the bottom = glass thickness */
+  box-shadow:
+    inset 0 1px 0 var(--g-edge-top),
+    inset 1px 0 0 var(--g-edge-side),
+    inset -1px 0 0 var(--g-edge-side),
+    inset 0 -1px 0 var(--g-edge-bottom),
+    inset 0 -12px 22px -16px rgba(8, 26, 33, 0.3),
+    var(--sh-1),
+    var(--sh-2),
+    var(--sh-3);
+}
+
+/* 3 — specular. Position driven by --gx/--gy (one throttled global listener). */
+.glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      120% 78% at var(--gx) var(--gy),
+      var(--g-spec) 0%,
+      color-mix(in srgb, var(--g-spec) 34%, transparent) 34%,
+      transparent 68%
+    ),
+    radial-gradient(
+      74% 46% at var(--sheen-shift) 118%,
+      var(--g-refract-a) 0%,
+      transparent 72%
+    );
+  opacity: var(--sheen);
+  transition: opacity var(--t-hover) var(--e-out);
+}
+
+/* 4 — refraction rim: conic ring masked to a 1px border */
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--sheen-angle),
+    var(--g-refract-c) 0deg,
+    var(--g-refract-a) 62deg,
+    var(--g-refract-c) 128deg,
+    var(--g-refract-b) 214deg,
+    var(--g-refract-c) 300deg,
+    var(--g-refract-c) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: var(--rim);
+  transition: opacity var(--t-hover) var(--e-out);
+}
+
+/* Content rides above the sheen so contrast is never eaten by it. */
+.glass > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- the grain texture, defined once ---- */
+:root {
+  --grain-tex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='130'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='130' height='130' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------------------
+   Liquid drift — the slow internal flow.
+   Only on large panes: the point is that the trapped light moves,
+   not that everything on screen animates.
+   ------------------------------------------------------------ */
+.glass--drift::before {
+  animation: rimDrift 26s linear infinite;
+}
+.glass--drift::after {
+  animation: sheenDrift 19s var(--e-inout) infinite alternate;
+}
+@keyframes rimDrift {
+  to {
+    --sheen-angle: 360deg;
+  }
+}
+@keyframes sheenDrift {
+  from {
+    --sheen-shift: 26%;
+  }
+  to {
+    --sheen-shift: 74%;
+  }
+}
+
+/* ------------------------------------------------------------
+   Depth tiers — hierarchy comes from blur / opacity / shadow,
+   never from stacking more panes on top of each other.
+   ------------------------------------------------------------ */
+.glass--thin {
+  --g-blur: 14px;
+  --sheen: 0.46;
+  --rim: 0.6;
+  box-shadow:
+    inset 0 1px 0 var(--g-edge-top),
+    inset 0 -1px 0 var(--g-edge-bottom),
+    var(--sh-1),
+    var(--sh-2);
+}
+.glass--raised {
+  box-shadow:
+    inset 0 1px 0 var(--g-edge-top),
+    inset 1px 0 0 var(--g-edge-side),
+    inset -1px 0 0 var(--g-edge-side),
+    inset 0 -1px 0 var(--g-edge-bottom),
+    inset 0 -14px 26px -18px rgba(8, 26, 33, 0.34),
+    var(--sh-1),
+    var(--sh-lift),
+    var(--sh-3);
+}
+
+/* ------------------------------------------------------------
+   Interactive glass
+   ------------------------------------------------------------ */
+.gbtn {
+  --sheen: 0.5;
+  /* clips the click ripple to the control's own shape */
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--ink-1);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transform: translateZ(0);
+}
+@media (hover: hover) {
+  .gbtn:hover {
+    --sheen: 0.86;
+    --rim: 1;
+  }
+}
+.gbtn:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 2px;
+}
+.gbtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+  filter: saturate(0.5);
+}
+
+/* solid accent action — the one high-contrast element per view */
+.gbtn--primary {
+  color: var(--ink-on-accent);
+  background-image:
+    var(--grain-tex),
+    linear-gradient(
+      152deg,
+      color-mix(in srgb, var(--accent-hi) 92%, white) 0%,
+      var(--accent) 58%,
+      color-mix(in srgb, var(--accent) 88%, black) 100%
+    );
+  --g-edge-top: rgba(255, 255, 255, 0.5);
+  --g-edge-side: rgba(255, 255, 255, 0.18);
+  --g-spec: rgba(255, 255, 255, 0.4);
+  --rim: 0.5;
+}
+.gbtn--danger {
+  color: #fff;
+  background-image:
+    var(--grain-tex),
+    linear-gradient(152deg, color-mix(in srgb, var(--bad) 88%, white), var(--bad));
+  --g-spec: rgba(255, 255, 255, 0.36);
+  --rim: 0.5;
+}
+.gbtn--quiet {
+  --sheen: 0.34;
+  --rim: 0.5;
+  color: var(--ink-2);
+}
+
+/* click-time refraction ripple: a translucent ring, not a colour splash */
+.ripple {
+  position: absolute;
+  z-index: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0);
+  background: radial-gradient(
+    circle,
+    transparent 34%,
+    color-mix(in srgb, var(--g-spec) 78%, transparent) 52%,
+    color-mix(in srgb, var(--g-refract-a) 60%, transparent) 66%,
+    transparent 78%
+  );
+  animation: rippleOut 480ms var(--e-out) forwards;
+}
+@keyframes rippleOut {
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------
+   Reduced motion — drop drift, parallax and highlight tracking.
+   Fades and instant state changes remain.
+   ------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .glass--drift::before,
+  .glass--drift::after {
+    animation: none;
+  }
+  .ripple {
+    display: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Safety net: without backdrop-filter, raise the tint so text stays legible. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    --g-tint-a: rgba(255, 255, 255, 0.95);
+    --g-tint-b: rgba(255, 255, 255, 0.9);
+    --g-tint-c: rgba(255, 255, 255, 0.93);
+  }
+  :root[data-theme='dark'] .glass {
+    --g-tint-a: rgba(22, 38, 46, 0.95);
+    --g-tint-b: rgba(16, 30, 37, 0.93);
+    --g-tint-c: rgba(20, 35, 43, 0.94);
+  }
+}

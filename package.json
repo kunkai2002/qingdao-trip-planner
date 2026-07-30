@@ -1,0 +1,23 @@
+{
+  "name": "qingdao-trip-planner",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "青岛一图流 · 行程规划器 — Apple Liquid Glass 重构版",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "framer-motion": "^11.11.17",
+    "leaflet": "^1.9.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^5.0.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.3",
+    "vite": "^5.4.11"
+  }
+}
