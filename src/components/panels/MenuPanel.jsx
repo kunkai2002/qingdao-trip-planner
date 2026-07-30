@@ -7,10 +7,12 @@ import { SectionTitle } from '../Panel.jsx'
 import { CATS, CAT_ORDER, catColor } from '../../data/categories.js'
 import { T } from '../../lib/motion.js'
 
+/* Controls are always dark glass, so this switch is about the MAP. Labelling it
+   just "外观" would be a lie about what changes. */
 const THEME_OPTIONS = [
   { value: 'auto', label: '跟随系统', icon: 'layers' },
-  { value: 'light', label: '浅色', icon: 'sun' },
-  { value: 'dark', label: '深色', icon: 'moon' },
+  { value: 'light', label: '浅色地图', icon: 'sun' },
+  { value: 'dark', label: '深色地图', icon: 'moon' },
 ]
 
 const BASEMAP_OPTIONS = [
@@ -60,7 +62,7 @@ export function MenuPanel({
         ))}
       </div>
 
-      <SectionTitle icon="sun">外观</SectionTitle>
+      <SectionTitle icon="sun">地图外观</SectionTitle>
       <Segmented options={THEME_OPTIONS} value={theme} onChange={onTheme} id="theme" />
 
       <SectionTitle icon="layers">底图</SectionTitle>

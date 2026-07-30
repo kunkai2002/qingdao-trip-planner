@@ -4,7 +4,11 @@ import { GlassSurface, GlassButton } from './Glass.jsx'
 import { T, SPRING } from '../lib/motion.js'
 
 const THEME_ICON = { auto: 'layers', light: 'sun', dark: 'moon' }
-const THEME_LABEL = { auto: '外观：跟随系统', light: '外观：浅色', dark: '外观：深色' }
+const THEME_LABEL = {
+  auto: '地图外观：跟随系统',
+  light: '地图外观：浅色',
+  dark: '地图外观：深色',
+}
 
 export function TopBar({
   query,

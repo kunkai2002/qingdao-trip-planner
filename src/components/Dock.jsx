@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { Icon } from '../icons/Icon.jsx'
-import { GlassSurface, GlassButton } from './Glass.jsx'
+import { GlassButton } from './Glass.jsx'
 import { T, SPRING } from '../lib/motion.js'
 
 function Badge({ value }) {
@@ -36,9 +36,9 @@ function DockButton({ badge, delay = 0, children, ...rest }) {
   )
 }
 
+/* The zoom +/- pair was removed: scroll, pinch and double-tap all already
+   zoom, so it was three ways to do one thing and made the dock a tall stack. */
 export function Dock({
-  onZoomIn,
-  onZoomOut,
   onFit,
   onChecklist,
   onRoutes,
@@ -50,65 +50,12 @@ export function Dock({
 }) {
   return (
     <div className="dock">
-      <GlassSurface
-        depth="thin"
-        style={{ '--radius': '17px', overflow: 'hidden', width: 50 }}
-        initial={{ opacity: 0, y: 16, scale: 0.9 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ ...T.card, delay: 0.06 }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <GlassButton
-            depth="thin"
-            lift={false}
-            onClick={onZoomIn}
-            title="放大"
-            aria-label="放大"
-            style={{
-              width: 50,
-              height: 42,
-              borderRadius: 0,
-              background: 'none',
-              backdropFilter: 'none',
-              WebkitBackdropFilter: 'none',
-              boxShadow: 'none',
-              color: 'var(--ink-2)',
-            }}
-          >
-            <Icon name="plus" size={18} />
-          </GlassButton>
-          <span
-            aria-hidden="true"
-            style={{ height: 1, margin: '0 10px', background: 'var(--g-hairline)' }}
-          />
-          <GlassButton
-            depth="thin"
-            lift={false}
-            onClick={onZoomOut}
-            title="缩小"
-            aria-label="缩小"
-            style={{
-              width: 50,
-              height: 42,
-              borderRadius: 0,
-              background: 'none',
-              backdropFilter: 'none',
-              WebkitBackdropFilter: 'none',
-              boxShadow: 'none',
-              color: 'var(--ink-2)',
-            }}
-          >
-            <Icon name="minus" size={18} />
-          </GlassButton>
-        </div>
-      </GlassSurface>
-
       <DockButton
         className="dock__btn"
         onClick={onFit}
         title="复位到全部点位"
         aria-label="复位到全部点位"
-        delay={0.1}
+        delay={0.06}
       >
         <Icon name="target" size={21} />
       </DockButton>

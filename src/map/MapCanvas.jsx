@@ -1,7 +1,7 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { makePinIcon } from './pinIcon.js'
+import { makePinIcon, makeClusterIcon } from './pinIcon.js'
 import { METRO_LINES } from '../data/metro.js'
 import { wgs2gcj } from '../lib/geo.js'
 
@@ -18,6 +18,31 @@ const TILES = {
 
 const LONG_PRESS_MS = 520
 
+/* Clustering: bucket points into a pixel grid at the current zoom. A grid is
+   enough here (a few dozen points) and, unlike leaflet.markercluster, it keeps
+   marker ownership in this component so the existing reconcile-by-id and
+   icon-state logic stays intact. Above CLUSTER_MAX_ZOOM everything is far
+   enough apart to show individually. */
+const CLUSTER_CELL = 52
+const CLUSTER_MAX_ZOOM = 15
+
+/**
+ * Bounds of the dense core, ignoring outliers.
+ *
+ * Fitting ALL points is wrong for the opening view: 崂山 (120.68), 金沙滩
+ * (120.256) and 青岛北站 stretch the box so wide that the city collapses to a
+ * speck and half the screen becomes sea. Trimming to the 8th–92nd percentile
+ * frames where the points actually are. The "复位" button still fits
+ * everything, because that is an explicit request to see the lot.
+ */
+function coreBounds(coords) {
+  if (coords.length < 5) return L.latLngBounds(coords)
+  const lats = coords.map((c) => c[0]).sort((a, b) => a - b)
+  const lngs = coords.map((c) => c[1]).sort((a, b) => a - b)
+  const q = (arr, p) => arr[Math.max(0, Math.min(arr.length - 1, Math.round((arr.length - 1) * p)))]
+  return L.latLngBounds([q(lats, 0.08), q(lngs, 0.08)], [q(lats, 0.92), q(lngs, 0.92)])
+}
+
 /**
  * MapCanvas owns the Leaflet instance imperatively. React drives *what* is on
  * the map through props; Leaflet keeps owning the DOM inside #map. Markers are
@@ -33,10 +58,12 @@ export const MapCanvas = forwardRef(function MapCanvas(
     routeColor,
     draftStops,
     selectedId,
+    movingId,
     addMode,
     diyMode,
     onSelect,
     onMovePoint,
+    onMoveEnd,
     onPlacePoint,
     onTileTrouble,
   },
@@ -46,11 +73,15 @@ export const MapCanvas = forwardRef(function MapCanvas(
   const mapRef = useRef(null)
   const tileRef = useRef(null)
   const markersRef = useRef(new Map())
+  const clusterLayerRef = useRef(null)
+  const zoomTickRef = useRef(0)
+  const didFitRef = useRef(false)
   const linesRef = useRef({ metro: null, route: null, routeHalo: null, draft: null })
   const cbRef = useRef({})
+  const [clusterTick, setClusterTick] = useState(0)
 
   // Handlers change every render; keep Leaflet bound to a stable box.
-  cbRef.current = { onSelect, onMovePoint, onPlacePoint, onTileTrouble }
+  cbRef.current = { onSelect, onMovePoint, onMoveEnd, onPlacePoint, onTileTrouble }
 
   /* ---------------- create once ---------------- */
   useEffect(() => {
@@ -78,11 +109,16 @@ export const MapCanvas = forwardRef(function MapCanvas(
       }).addTo(metro)
     })
 
+    const clusters = L.layerGroup().addTo(map)
+    clusterLayerRef.current = clusters
+
     const root = document.documentElement
     const onMoveStart = () => root.setAttribute('data-map-moving', '1')
     const onMoveEnd = () => root.removeAttribute('data-map-moving')
     map.on('movestart zoomstart', onMoveStart)
     map.on('moveend zoomend', onMoveEnd)
+    // recluster once the view settles
+    map.on('zoomend moveend', () => setClusterTick((n) => n + 1))
 
     /* Long-press on empty map drops a new point there. Leaflet still emits a
        click on release, so swallow the next one once the press has fired. */
@@ -164,7 +200,9 @@ export const MapCanvas = forwardRef(function MapCanvas(
       seen.add(p.id)
       let m = live.get(p.id)
       if (!m) {
-        m = L.marker([p.lat, p.lng], { icon: makePinIcon(p), draggable: true, riseOnHover: true })
+        // draggable:false by design — dragging a marker must never steal a map pan.
+        // Dragging is enabled for one armed marker only, in the effect below.
+        m = L.marker([p.lat, p.lng], { icon: makePinIcon(p), draggable: false, riseOnHover: true })
         m.on('click', (e) => {
           L.DomEvent.stopPropagation(e)
           cbRef.current.onSelect?.(p.id)
@@ -175,6 +213,7 @@ export const MapCanvas = forwardRef(function MapCanvas(
         m.on('dragend', (e) => {
           const ll = e.target.getLatLng()
           cbRef.current.onMovePoint?.(p.id, ll.lat, ll.lng)
+          cbRef.current.onMoveEnd?.(p.id)
         })
         live.set(p.id, m)
       } else {
@@ -193,22 +232,56 @@ export const MapCanvas = forwardRef(function MapCanvas(
     })
   }, [points])
 
-  /* ---------------- markers: visibility + icon state ---------------- */
+  /* ---------------- markers: clustering, visibility, icon state ---------------- */
   useEffect(() => {
     const map = mapRef.current
-    if (!map) return
+    const clusters = clusterLayerRef.current
+    if (!map || !clusters) return
+
     const routeIndex = new Map((routeStops || []).map((id, i) => [id, i + 1]))
     const draftIndex = new Map((draftStops || []).map((id, i) => [id, i + 1]))
     const hasRoute = routeIndex.size > 0 || draftIndex.size > 0
+    const zoom = map.getZoom()
 
+    /* Points on a shown route, being moved, or currently selected are never
+       folded into a bubble — hiding the thing the user just clicked would be
+       actively confusing. */
+    const mustShow = (id) =>
+      routeIndex.has(id) || draftIndex.has(id) || id === selectedId || id === movingId
+
+    const visible = points.filter((p) => visibleIds.has(p.id))
+    const solo = []
+    const buckets = new Map()
+
+    if (zoom > CLUSTER_MAX_ZOOM) {
+      solo.push(...visible)
+    } else {
+      visible.forEach((p) => {
+        if (mustShow(p.id)) {
+          solo.push(p)
+          return
+        }
+        const pt = map.project([p.lat, p.lng], zoom)
+        const key = `${Math.floor(pt.x / CLUSTER_CELL)}:${Math.floor(pt.y / CLUSTER_CELL)}`
+        const b = buckets.get(key)
+        if (b) b.push(p)
+        else buckets.set(key, [p])
+      })
+      buckets.forEach((group) => {
+        if (group.length === 1) solo.push(group[0])
+      })
+    }
+
+    const soloIds = new Set(solo.map((p) => p.id))
+
+    // individual markers
     points.forEach((p) => {
       const m = markersRef.current.get(p.id)
       if (!m) return
-      const visible = visibleIds.has(p.id)
-      if (visible && !map.hasLayer(m)) m.addTo(map)
-      if (!visible && map.hasLayer(m)) map.removeLayer(m)
-      if (!visible) return
-
+      const show = soloIds.has(p.id)
+      if (show && !map.hasLayer(m)) m.addTo(map)
+      if (!show && map.hasLayer(m)) map.removeLayer(m)
+      if (!show) return
       const seq = draftIndex.get(p.id) || routeIndex.get(p.id) || 0
       m.setIcon(
         makePinIcon(p, {
@@ -216,10 +289,59 @@ export const MapCanvas = forwardRef(function MapCanvas(
           selected: selectedId === p.id,
           inRoute: seq > 0,
           dim: hasRoute && seq === 0,
+          moving: movingId === p.id,
         }),
       )
     })
-  }, [points, visibleIds, routeStops, draftStops, selectedId])
+
+    // cluster bubbles
+    clusters.clearLayers()
+    buckets.forEach((group) => {
+      if (group.length < 2) return
+      const lat = group.reduce((s, p) => s + p.lat, 0) / group.length
+      const lng = group.reduce((s, p) => s + p.lng, 0) / group.length
+      const cats = [...new Set(group.map((p) => p.cat))]
+      const marker = L.marker([lat, lng], {
+        icon: makeClusterIcon(group.length, cats),
+        zIndexOffset: -200,
+      })
+      marker.on('click', (e) => {
+        L.DomEvent.stopPropagation(e)
+        const bounds = L.latLngBounds(group.map((p) => [p.lat, p.lng]))
+        if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
+          // every point in the bubble shares one coordinate — just zoom in
+          map.setView(bounds.getCenter(), Math.min(map.getZoom() + 3, 18), { animate: true })
+        } else {
+          map.fitBounds(bounds.pad(0.5), { animate: true, maxZoom: 17 })
+        }
+      })
+      marker.addTo(clusters)
+    })
+  }, [points, visibleIds, routeStops, draftStops, selectedId, movingId, clusterTick])
+
+  /* ---------------- exactly one marker may be dragged ---------------- */
+  useEffect(() => {
+    markersRef.current.forEach((m, id) => {
+      if (!m.dragging) return
+      if (id === movingId) m.dragging.enable()
+      else m.dragging.disable()
+    })
+  }, [movingId, points])
+
+  /* ---------------- opening view: frame the points, not the sea ---------------- */
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || didFitRef.current) return
+    const coords = points.filter((p) => visibleIds.has(p.id)).map((p) => [p.lat, p.lng])
+    if (coords.length < 3) return
+    didFitRef.current = true
+    map.fitBounds(coreBounds(coords), {
+      paddingTopLeft: [26, 128],
+      paddingBottomRight: [26, 96],
+      animate: false,
+    })
+    setClusterTick((n) => n + 1)
+  }, [points, visibleIds])
 
   /* ---------------- metro visibility ---------------- */
   useEffect(() => {

@@ -87,6 +87,9 @@ export const useStore = create((set, get) => ({
   draftStops: [],
   diyMode: false,
   addMode: false,
+  /* Markers are NOT draggable by default — a drag on the map must pan the map.
+     Exactly one point at a time can be armed for moving, from its detail panel. */
+  movingId: null,
 
   /* ---- ephemeral ---- */
   toast: null,
@@ -158,7 +161,7 @@ export const useStore = create((set, get) => ({
     else write(KEYS.theme, next)
     if (!announce) return
     const label = { auto: '跟随系统', light: '浅色', dark: '深色' }[next]
-    get().notify(`外观：${label}`, 'info', next === 'dark' ? 'moon' : 'sun')
+    get().notify(`地图外观：${label}`, 'info', next === 'dark' ? 'moon' : 'sun')
   },
 
   cycleTheme() {
@@ -260,8 +263,21 @@ export const useStore = create((set, get) => ({
   movePoint(id, lat, lng) {
     set((s) => ({ points: s.points.map((p) => (p.id === id ? { ...p, lat, lng } : p)) }))
     get().persist()
-    const p = get().getPoint(id)
-    get().notify(`已移动「${p?.name || ''}」`, 'info', 'mapPin')
+  },
+
+  /** Arm a single point for dragging. Panning stays available everywhere else. */
+  startMove(id) {
+    set({ movingId: id, addMode: false })
+    get().notify('拖动这个点位到正确位置，其余地方仍可平移地图', 'info', 'gripDots')
+  },
+  endMove(announce = true) {
+    const id = get().movingId
+    if (!id) return
+    set({ movingId: null })
+    if (announce) {
+      const p = get().getPoint(id)
+      get().notify(`「${p?.name || ''}」位置已保存`, 'good', 'checkCircle')
+    }
   },
 
   /* ================= routes ================= */

@@ -1,6 +1,15 @@
 /* ============================================================
    Design tokens — Liquid Glass
-   One source of truth for colour, glass matter, radii, motion.
+   ------------------------------------------------------------
+   KEY DECISION: the chrome is ALWAYS dark glass, in both themes.
+
+   A white-tinted pane over a light map has almost no contrast with its
+   own background, so every refraction, rim and specular cue becomes
+   invisible and the result reads as plain white pills. Dark glass over a
+   light map is self-separating — the map is always lighter than the pane —
+   which is also what Apple Maps does. The theme switch therefore controls
+   the MAP (light tiles vs inverted dark tiles) and the ambient wash, not
+   the colour of the controls.
    ============================================================ */
 
 /* Animatable custom properties (needed for gradient-angle drift) */
@@ -55,204 +64,153 @@
   --t-card: 280ms;
   --t-modal: 340ms;
 
-  /* ---- category hues (restrained, print-safe) ---- */
-  --c-sight: #0f8a83;
-  --c-stay: #6d5bc7;
-  --c-food: #cd6c2b;
-  --c-fun: #2f6bd4;
-  --c-metro: #5b7a86;
+  /* ------------------------------------------------------------
+     Chrome: dark glass, theme-independent.
+     ------------------------------------------------------------ */
 
-  /* ---- semantic ---- */
-  --accent: #0a6270;
-  --accent-hi: #0f8695;
-  --warn: #b0561f;
-  --good: #2c8150;
-  --bad: #ad3a2c;
+  /* Text — light, because it always sits on dark glass. Values solved against
+     the WORST case: the thinnest tint stop (0.80) over a white map highlight,
+     which lands the surface near #404b4f. All four clear WCAG AA there:
+     ink-1 8.7 · ink-2 5.5 · ink-3 4.8 · accent 5.0 */
+  --ink-1: #f2f7f9;
+  --ink-2: #b6cad4;
+  --ink-3: #a8bcc6;
+  --ink-on-accent: #06222a;
+
+  /* category hues: the brighter variants, for legibility on dark glass */
+  --c-sight: #3fc0b5;
+  --c-stay: #a99bf0;
+  --c-food: #f0a061;
+  --c-fun: #7bacf5;
+  --c-metro: #9db6c2;
+
+  /* semantic */
+  --accent: #55cdda;
+  --accent-hi: #7ee2ed;
+  --warn: #f0a95e;
+  --good: #5fcf90;
+  --bad: #f2796a;
+
+  --field-bg: rgba(255, 255, 255, 0.08);
+  --field-line: rgba(255, 255, 255, 0.16);
+
+  /* Glass matter. The mid stop is the thinnest part of the gradient and so
+     sets the contrast floor for every piece of text on the pane. Over the
+     brightest possible map pixel (white sea glare) 0.80 lands the surface near
+     #404b4f, which is what keeps even --ink-3 above 4.5:1. Lowering it for a
+     more transparent look silently breaks the secondary text — measure before
+     touching this. */
+  --g-base: 16, 27, 33;
+  --g-tint-a: rgba(16, 27, 33, 0.9);
+  --g-tint-b: rgba(16, 27, 33, 0.8);
+  --g-tint-c: rgba(16, 27, 33, 0.85);
+  --g-blur: 26px;
+  --g-sat: 165%;
+  --g-bright: 1.05;
+
+  /* edges: light rim on top, shade at the bottom = glass thickness */
+  --g-edge-top: rgba(255, 255, 255, 0.34);
+  --g-edge-side: rgba(255, 255, 255, 0.13);
+  --g-edge-bottom: rgba(255, 255, 255, 0.06);
+  --g-hairline: rgba(255, 255, 255, 0.11);
+
+  /* specular sheen + refraction ring */
+  --g-spec: rgba(255, 255, 255, 0.26);
+  --g-refract-a: rgba(130, 210, 245, 0.36);
+  --g-refract-b: rgba(215, 160, 225, 0.28);
+  --g-refract-c: rgba(255, 255, 255, 0.55);
+  /* fine, not dirty: coarse grain over a dark pane reads as dust */
+  --g-noise: 0.035;
+
+  /* drop shadows: contact + mid + ambient */
+  --sh-1: 0 1px 1.5px rgba(4, 14, 19, 0.3);
+  --sh-2: 0 8px 20px -8px rgba(4, 14, 19, 0.5);
+  --sh-3: 0 26px 56px -24px rgba(4, 14, 19, 0.55);
+  --sh-lift: 0 16px 36px -12px rgba(4, 14, 19, 0.55);
+
+  --pill-fill: rgba(67, 195, 209, 0.2);
+  --scrim: rgba(4, 12, 17, 0.5);
 }
 
 /* ------------------------------------------------------------
-   LIGHT
+   LIGHT MAP (default): pale tiles under dark controls.
    ------------------------------------------------------------ */
 :root,
 :root[data-theme='light'] {
   color-scheme: light;
-
-  /* Contrast against the typical light pane (≈#f4f6f7):
-     ink-1 14.3:1 · ink-2 6.2:1 · ink-3 4.8:1 — all at or above WCAG AA for
-     body text. ink-3 carries a lot of small meta text, so it is deliberately
-     darker than a "muted grey" instinct would suggest. */
-  --ink-1: #0f272f;
-  --ink-2: #45606c;
-  --ink-3: #57707d;
-  --ink-on-accent: #ffffff;
-
-  --field-bg: rgba(255, 255, 255, 0.58);
-  --field-line: rgba(15, 39, 47, 0.13);
-
-  /* ambient canvas behind / around the map */
   --amb-0: #e7eef1;
-  --amb-1: rgba(96, 190, 199, 0.5);
-  --amb-2: rgba(126, 150, 232, 0.42);
-  --amb-3: rgba(238, 168, 122, 0.34);
-  --amb-4: rgba(122, 214, 190, 0.34);
-  --amb-strength: 0.5;
-
-  /* glass matter: the body of the pane. The mid stop is the thinnest part of
-     the gradient and therefore sets the contrast floor over a busy map, which
-     is why it does not go below 0.5. */
-  --g-tint-a: rgba(255, 255, 255, 0.72);
-  --g-tint-b: rgba(255, 255, 255, 0.5);
-  --g-tint-c: rgba(255, 255, 255, 0.58);
-  --g-blur: 26px;
-  --g-sat: 185%;
-  --g-bright: 1.05;
-
-  /* edges */
-  --g-edge-top: rgba(255, 255, 255, 0.95);
-  --g-edge-side: rgba(255, 255, 255, 0.5);
-  --g-edge-bottom: rgba(255, 255, 255, 0.28);
-  --g-hairline: rgba(15, 39, 47, 0.08);
-
-  /* specular sheen + refraction ring */
-  --g-spec: rgba(255, 255, 255, 0.62);
-  --g-refract-a: rgba(174, 226, 255, 0.5);
-  --g-refract-b: rgba(255, 208, 232, 0.42);
-  --g-refract-c: rgba(255, 255, 255, 0.92);
-  --g-noise: 0.05;
-
-  /* drop shadows: contact + mid + ambient */
-  --sh-1: 0 1px 1.5px rgba(11, 32, 40, 0.07);
-  --sh-2: 0 6px 18px -6px rgba(11, 32, 40, 0.18);
-  --sh-3: 0 22px 52px -22px rgba(11, 32, 40, 0.3);
-  --sh-lift: 0 14px 34px -10px rgba(11, 32, 40, 0.24);
-
-  --pill-fill: rgba(12, 107, 120, 0.14);
-  --scrim: rgba(12, 28, 34, 0.34);
+  --amb-1: rgba(96, 190, 199, 0.42);
+  --amb-2: rgba(126, 150, 232, 0.34);
+  --amb-3: rgba(238, 168, 122, 0.26);
+  --amb-4: rgba(122, 214, 190, 0.26);
+  /* the wash used to muddy the map; it only needs to feed the glass */
+  --amb-strength: 0.26;
+  --map-filter: none;
 }
 
 /* ------------------------------------------------------------
-   DARK
+   DARK MAP: tiles are inverted, so the glass must sit ABOVE the map in
+   lightness instead of below it, or it disappears again.
    ------------------------------------------------------------ */
 :root[data-theme='dark'] {
   color-scheme: dark;
-
-  --ink-1: #eef5f7;
-  --ink-2: #a9c1cb;
-  --ink-3: #7d95a1;
-  --ink-on-accent: #ffffff;
-
-  --field-bg: rgba(255, 255, 255, 0.07);
-  --field-line: rgba(255, 255, 255, 0.14);
-
   --amb-0: #09141a;
-  --amb-1: rgba(24, 132, 148, 0.46);
-  --amb-2: rgba(74, 92, 190, 0.42);
-  --amb-3: rgba(178, 96, 54, 0.32);
-  --amb-4: rgba(30, 150, 132, 0.32);
-  --amb-strength: 0.62;
+  --amb-1: rgba(24, 132, 148, 0.4);
+  --amb-2: rgba(74, 92, 190, 0.34);
+  --amb-3: rgba(178, 96, 54, 0.26);
+  --amb-4: rgba(30, 150, 132, 0.26);
+  --amb-strength: 0.4;
+  --map-filter: invert(1) hue-rotate(180deg) brightness(0.86) contrast(0.9)
+    saturate(0.75);
 
-  --g-tint-a: rgba(30, 48, 57, 0.66);
-  --g-tint-b: rgba(14, 28, 35, 0.5);
-  --g-tint-c: rgba(24, 42, 51, 0.6);
+  /* lighter, cooler glass so it reads as raised off a near-black map */
+  --g-base: 47, 66, 77;
+  --g-tint-a: rgba(47, 66, 77, 0.82);
+  --g-tint-b: rgba(40, 58, 68, 0.72);
+  --g-tint-c: rgba(44, 62, 73, 0.78);
   --g-blur: 30px;
-  --g-sat: 165%;
-  --g-bright: 1.14;
-
-  --g-edge-top: rgba(255, 255, 255, 0.34);
-  --g-edge-side: rgba(255, 255, 255, 0.13);
-  --g-edge-bottom: rgba(255, 255, 255, 0.07);
-  --g-hairline: rgba(255, 255, 255, 0.09);
-
-  --g-spec: rgba(255, 255, 255, 0.24);
-  --g-refract-a: rgba(120, 200, 240, 0.34);
-  --g-refract-b: rgba(210, 150, 220, 0.28);
-  --g-refract-c: rgba(255, 255, 255, 0.5);
-  --g-noise: 0.07;
-
-  --sh-1: 0 1px 1.5px rgba(0, 0, 0, 0.4);
-  --sh-2: 0 8px 22px -8px rgba(0, 0, 0, 0.6);
+  --g-edge-top: rgba(255, 255, 255, 0.28);
+  --g-spec: rgba(255, 255, 255, 0.2);
+  --sh-1: 0 1px 1.5px rgba(0, 0, 0, 0.5);
+  --sh-2: 0 8px 22px -8px rgba(0, 0, 0, 0.66);
   --sh-3: 0 26px 60px -24px rgba(0, 0, 0, 0.72);
-  --sh-lift: 0 16px 38px -12px rgba(0, 0, 0, 0.66);
-
-  --accent: #35a8b6;
-  --accent-hi: #4cc0cd;
-  --warn: #d98a4e;
-  --good: #52b57c;
-  --bad: #e0705f;
-  --c-sight: #35b5ac;
-  --c-stay: #9d8ae8;
-  --c-food: #e59155;
-  --c-fun: #6b9bef;
-  --c-metro: #8aa6b2;
-
-  --pill-fill: rgba(53, 168, 182, 0.2);
-  --scrim: rgba(2, 10, 14, 0.52);
+  --sh-lift: 0 16px 38px -12px rgba(0, 0, 0, 0.68);
 }
 
-/* Follow the OS when the user has not picked a theme explicitly. */
+/* Follow the OS when the user has not picked a theme explicitly. Only the
+   map-side tokens differ, so this block stays small. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;
-
-    --ink-1: #eef5f7;
-    --ink-2: #a9c1cb;
-    --ink-3: #7d95a1;
-
-    --field-bg: rgba(255, 255, 255, 0.07);
-    --field-line: rgba(255, 255, 255, 0.14);
-
     --amb-0: #09141a;
-    --amb-1: rgba(24, 132, 148, 0.46);
-    --amb-2: rgba(74, 92, 190, 0.42);
-    --amb-3: rgba(178, 96, 54, 0.32);
-    --amb-4: rgba(30, 150, 132, 0.32);
-    --amb-strength: 0.62;
+    --amb-1: rgba(24, 132, 148, 0.4);
+    --amb-2: rgba(74, 92, 190, 0.34);
+    --amb-3: rgba(178, 96, 54, 0.26);
+    --amb-4: rgba(30, 150, 132, 0.26);
+    --amb-strength: 0.4;
+    --map-filter: invert(1) hue-rotate(180deg) brightness(0.86) contrast(0.9)
+      saturate(0.75);
 
-    --g-tint-a: rgba(30, 48, 57, 0.66);
-    --g-tint-b: rgba(14, 28, 35, 0.5);
-    --g-tint-c: rgba(24, 42, 51, 0.6);
+    --g-base: 47, 66, 77;
+    --g-tint-a: rgba(47, 66, 77, 0.82);
+    --g-tint-b: rgba(40, 58, 68, 0.72);
+    --g-tint-c: rgba(44, 62, 73, 0.78);
     --g-blur: 30px;
-    --g-sat: 165%;
-    --g-bright: 1.14;
-
-    --g-edge-top: rgba(255, 255, 255, 0.34);
-    --g-edge-side: rgba(255, 255, 255, 0.13);
-    --g-edge-bottom: rgba(255, 255, 255, 0.07);
-    --g-hairline: rgba(255, 255, 255, 0.09);
-
-    --g-spec: rgba(255, 255, 255, 0.24);
-    --g-refract-a: rgba(120, 200, 240, 0.34);
-    --g-refract-b: rgba(210, 150, 220, 0.28);
-    --g-refract-c: rgba(255, 255, 255, 0.5);
-    --g-noise: 0.07;
-
-    --sh-1: 0 1px 1.5px rgba(0, 0, 0, 0.4);
-    --sh-2: 0 8px 22px -8px rgba(0, 0, 0, 0.6);
+    --g-edge-top: rgba(255, 255, 255, 0.28);
+    --g-spec: rgba(255, 255, 255, 0.2);
+    --sh-1: 0 1px 1.5px rgba(0, 0, 0, 0.5);
+    --sh-2: 0 8px 22px -8px rgba(0, 0, 0, 0.66);
     --sh-3: 0 26px 60px -24px rgba(0, 0, 0, 0.72);
-    --sh-lift: 0 16px 38px -12px rgba(0, 0, 0, 0.66);
-
-    --accent: #35a8b6;
-    --accent-hi: #4cc0cd;
-    --warn: #d98a4e;
-    --good: #52b57c;
-    --bad: #e0705f;
-    --c-sight: #35b5ac;
-    --c-stay: #9d8ae8;
-    --c-food: #e59155;
-    --c-fun: #6b9bef;
-    --c-metro: #8aa6b2;
-
-    --pill-fill: rgba(53, 168, 182, 0.2);
-    --scrim: rgba(2, 10, 14, 0.52);
+    --sh-lift: 0 16px 38px -12px rgba(0, 0, 0, 0.68);
   }
 }
 
 /* Phones: cheaper glass. Large blurred surfaces are the main cost on mobile
-   GPUs, so trim blur radius, refraction and shadow spread. */
+   GPUs, so trim blur radius, grain and shadow spread. */
 @media (max-width: 719px) {
   :root {
     --g-blur: 20px;
-    --g-noise: 0.04;
-    --sh-3: 0 16px 36px -18px rgba(11, 32, 40, 0.26);
+    --g-noise: 0.028;
+    --sh-3: 0 16px 36px -18px rgba(4, 14, 19, 0.5);
   }
 }

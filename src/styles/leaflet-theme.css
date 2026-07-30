@@ -12,14 +12,9 @@
 }
 
 /* Dark map: invert the raster tiles only. Markers and overlays live in other
-   panes, so they keep their true colours. */
-:root[data-theme='dark'] .leaflet-tile-pane {
-  filter: invert(1) hue-rotate(180deg) brightness(0.88) contrast(0.9) saturate(0.78);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) .leaflet-tile-pane {
-    filter: invert(1) hue-rotate(180deg) brightness(0.88) contrast(0.9) saturate(0.78);
-  }
+   panes, so they keep their true colours. Driven by --map-filter in tokens. */
+.leaflet-tile-pane {
+  filter: var(--map-filter, none);
 }
 
 /* tiles fade in rather than popping */
@@ -41,10 +36,13 @@
   background: none;
   border: 0;
 }
+/* Pins annotate the map; they are not the subject of it. Hence 24px rather
+   than 30px, a flatter fill, a 1.5px ring instead of 2px, and one shadow
+   instead of two. */
 .pin {
   position: relative;
-  width: 34px;
-  height: 38px;
+  width: 28px;
+  height: 32px;
   display: grid;
   place-items: start center;
   cursor: pointer;
@@ -52,37 +50,32 @@
 }
 .pin__drop {
   position: relative;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   display: grid;
   place-items: center;
   /* sharp corner bottom-left + rotate(-45deg) puts the point straight down */
-  border-radius: 50% 50% 50% 6px;
+  border-radius: 50% 50% 50% 5px;
   transform: rotate(-45deg);
   color: #fff;
   background: linear-gradient(
     145deg,
-    color-mix(in srgb, var(--pin-c) 82%, white),
-    var(--pin-c) 58%,
-    color-mix(in srgb, var(--pin-c) 82%, black)
+    color-mix(in srgb, var(--pin-c) 88%, white),
+    color-mix(in srgb, var(--pin-c) 94%, black)
   );
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -2px 4px -1px rgba(0, 0, 0, 0.24),
-    0 0 0 2px rgba(255, 255, 255, 0.9),
-    0 3px 7px -2px rgba(8, 26, 33, 0.42),
-    0 8px 16px -8px rgba(8, 26, 33, 0.5);
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 0 1.5px rgba(255, 255, 255, 0.92),
+    0 2px 5px -1px rgba(8, 26, 33, 0.34);
   transition:
     transform var(--t-hover) var(--e-out),
     box-shadow var(--t-hover) var(--e-out);
 }
 :root[data-theme='dark'] .pin__drop {
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.42),
-    inset 0 -2px 4px -1px rgba(0, 0, 0, 0.34),
-    0 0 0 2px rgba(16, 30, 37, 0.92),
-    0 3px 7px -2px rgba(0, 0, 0, 0.55),
-    0 8px 16px -8px rgba(0, 0, 0, 0.6);
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    0 0 0 1.5px rgba(20, 34, 41, 0.9),
+    0 2px 5px -1px rgba(0, 0, 0, 0.5);
 }
 .pin__drop > svg {
   transform: rotate(45deg);
@@ -91,24 +84,24 @@
 .pin__tip {
   position: absolute;
   left: 50%;
-  top: 34px;
-  width: 12px;
-  height: 5px;
+  top: 28px;
+  width: 10px;
+  height: 4px;
   border-radius: 50%;
   transform: translateX(-50%);
-  background: rgba(8, 26, 33, 0.26);
-  filter: blur(2.5px);
+  background: rgba(8, 26, 33, 0.22);
+  filter: blur(2px);
 }
 
 /* sequence badge when the pin is part of a shown route */
 .pin__seq {
   position: absolute;
-  top: -5px;
-  right: -6px;
+  top: -4px;
+  right: -5px;
   z-index: 2;
-  min-width: 19px;
-  height: 19px;
-  padding: 0 4px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 3px;
   border-radius: 99px;
   display: grid;
   place-items: center;
@@ -130,21 +123,67 @@
 /* booking-required dot */
 .pin__flag {
   position: absolute;
-  top: -3px;
-  left: -4px;
+  top: -2px;
+  left: -2px;
   z-index: 2;
-  width: 11px;
-  height: 11px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  background: linear-gradient(150deg, color-mix(in srgb, var(--warn) 80%, white), var(--warn));
+  background: #e08a2e;
   box-shadow:
-    0 0 0 1.6px rgba(255, 255, 255, 0.95),
-    0 1px 3px rgba(8, 26, 33, 0.4);
+    0 0 0 1.5px rgba(255, 255, 255, 0.95),
+    0 1px 2px rgba(8, 26, 33, 0.4);
 }
 :root[data-theme='dark'] .pin__flag {
   box-shadow:
-    0 0 0 1.6px rgba(16, 30, 37, 0.95),
-    0 1px 3px rgba(0, 0, 0, 0.5);
+    0 0 0 1.5px rgba(20, 34, 41, 0.95),
+    0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* ------------------------------------------------------------
+   Cluster bubbles
+   ------------------------------------------------------------ */
+.cluster-wrap {
+  background: none;
+  border: 0;
+}
+.cluster {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 2.5px;
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.9),
+    0 3px 8px -2px rgba(8, 26, 33, 0.38);
+  transition: transform var(--t-hover) var(--e-out);
+}
+.cluster__inner {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: #10262f;
+  background: rgba(255, 255, 255, 0.94);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+:root[data-theme='dark'] .cluster {
+  box-shadow:
+    0 0 0 1.5px rgba(20, 34, 41, 0.9),
+    0 3px 8px -2px rgba(0, 0, 0, 0.5);
+}
+:root[data-theme='dark'] .cluster__inner {
+  color: #eef5f7;
+  background: rgba(24, 38, 46, 0.94);
+}
+.cluster:hover {
+  transform: scale(1.08);
 }
 
 /* states */
@@ -190,10 +229,10 @@
   content: '';
   position: absolute;
   left: 50%;
-  top: 15px;
-  width: 30px;
-  height: 30px;
-  margin: -15px 0 0 -15px;
+  top: 12px;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--pin-c) 40%, transparent);
   animation: pinPulse 2.2s var(--e-out) infinite;
@@ -217,12 +256,57 @@
   }
 }
 
+/* Armed for moving: the only marker on the map that can be dragged, so it has
+   to look unmistakably different from the other 48. */
+.pin--moving {
+  z-index: 700;
+  animation: pinLift var(--t-card) var(--e-out) both;
+}
+.pin--moving .pin__drop {
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.6),
+    0 0 0 2.5px rgba(255, 255, 255, 0.98),
+    0 0 0 6px color-mix(in srgb, var(--warn) 42%, transparent),
+    0 10px 20px -4px rgba(8, 26, 33, 0.5);
+}
+.pin--moving .pin__tip {
+  opacity: 0.5;
+  transform: translateX(-50%) scale(1.4);
+}
+/* dashed target ring showing where it will land */
+.pin--moving::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  top: 29px;
+  width: 28px;
+  height: 12px;
+  margin: -6px 0 0 -14px;
+  border-radius: 50%;
+  border: 1.5px dashed color-mix(in srgb, var(--warn) 75%, transparent);
+  pointer-events: none;
+}
+@keyframes pinLift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-5px);
+  }
+}
+
 /* the draggable affordance */
 .leaflet-marker-draggable {
   cursor: grab;
 }
+.leaflet-marker-draggable:active,
 .leaflet-dragging .leaflet-marker-draggable {
   cursor: grabbing;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pin--moving {
+    animation: none;
+  }
 }
 
 /* ---- polylines ---- */

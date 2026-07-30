@@ -192,26 +192,12 @@ a:hover {
    never hurt legibility. Tint only — re-running a large backdrop-filter every
    frame of a drag is exactly the kind of cost this design avoids. */
 :root[data-map-moving='1'] .topbar .glass,
-:root[data-map-moving='1'] .dock .glass,
-:root[data-map-moving='1'] .legend {
-  --g-solid: rgba(255, 255, 255, 0.2);
+:root[data-map-moving='1'] .dock .glass {
+  --g-solid: rgba(var(--g-base), 0.22);
   --rim: 1;
 }
-:root[data-theme='dark'][data-map-moving='1'] .topbar .glass,
-:root[data-theme='dark'][data-map-moving='1'] .dock .glass,
-:root[data-theme='dark'][data-map-moving='1'] .legend {
-  --g-solid: rgba(8, 20, 26, 0.26);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme])[data-map-moving='1'] .topbar .glass,
-  :root:not([data-theme])[data-map-moving='1'] .dock .glass,
-  :root:not([data-theme])[data-map-moving='1'] .legend {
-    --g-solid: rgba(8, 20, 26, 0.26);
-  }
-}
 .topbar .glass,
-.dock .glass,
-.legend {
+.dock .glass {
   transition: background-color var(--t-hover) var(--e-out);
 }
 
@@ -262,8 +248,13 @@ a:hover {
     inset 0 1px 0 rgba(255, 255, 255, 0.45),
     0 3px 8px -2px color-mix(in srgb, var(--accent) 55%, transparent);
 }
+/* BUG FIX: title and subtitle are spans, so without an explicit column they
+   ran together on one line ("青岛一图流点位可拖动 · 长按空白加点"). */
 .brand__text {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 .brand__title {
   font-size: var(--fs-head);
@@ -443,6 +434,7 @@ a:hover {
     var(--grain-tex),
     linear-gradient(152deg, color-mix(in srgb, var(--warn) 88%, white), var(--warn));
 }
+/* Neutral, not red: "31 things still to pack" is a count, not an error. */
 .dock__badge {
   position: absolute;
   top: -3px;
@@ -456,47 +448,16 @@ a:hover {
   font-size: 10.5px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: #fff;
-  background: linear-gradient(150deg, var(--bad), color-mix(in srgb, var(--bad) 78%, black));
+  color: var(--ink-on-accent);
+  background: linear-gradient(150deg, var(--accent-hi), var(--accent));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 2px 6px -1px rgba(0, 0, 0, 0.35);
+    0 2px 6px -1px rgba(4, 14, 19, 0.45);
 }
 
-/* ------------------------------------------------------------
-   Legend
-   ------------------------------------------------------------ */
-.legend {
-  position: absolute;
-  left: max(14px, env(safe-area-inset-left, 0px));
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
-  z-index: 460;
-  --radius: var(--r-md);
-  padding: 9px 12px;
-  display: none;
-}
-.legend__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  color: var(--ink-2);
-  line-height: 1.9;
-}
-.legend__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--legend-c) 22%, transparent);
-  background: var(--legend-c);
-}
-@media (min-width: 900px) and (min-height: 560px) {
-  .legend {
-    display: block;
-  }
-}
+/* The bottom-left legend was deleted: it repeated the layer chips exactly
+   (same five categories, same colours) while the chips also carry counts and
+   are interactive. Two legends on one screen is just clutter. */
 
 /* ------------------------------------------------------------
    Panel (bottom sheet on phones, right rail on desktop)
@@ -762,9 +723,9 @@ a:hover {
   font-size: 13px;
   line-height: 1.62;
   color: var(--ink-1);
-  background: color-mix(in srgb, var(--c) 11%, transparent);
+  background: color-mix(in srgb, var(--c) 17%, transparent);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--c) 24%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--c) 32%, transparent),
     inset 3px 0 0 var(--c);
 }
 .callout__icon {

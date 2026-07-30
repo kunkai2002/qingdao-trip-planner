@@ -19,7 +19,7 @@ function Field({ icon, label, children }) {
   )
 }
 
-export function DetailPanel({ point, onAddToRoute, onEdit, onDelete, inDraft }) {
+export function DetailPanel({ point, onAddToRoute, onEdit, onDelete, onMove, inDraft, moving }) {
   if (!point) return null
   const cat = CATS[point.cat] || CATS.sight
   const amap = `https://uri.amap.com/marker?position=${point.lng.toFixed(6)},${point.lat.toFixed(
@@ -172,8 +172,19 @@ export function DetailPanel({ point, onAddToRoute, onEdit, onDelete, inDraft }) 
         </GlassButton>
       </div>
 
+      <div className="actions" style={{ marginTop: 8 }}>
+        <GlassButton
+          variant={moving ? 'danger' : 'quiet'}
+          className="btn"
+          onClick={() => onMove(point.id)}
+        >
+          <Icon name={moving ? 'check' : 'gripDots'} size={16} />
+          {moving ? '完成位置调整' : '调整位置'}
+        </GlassButton>
+      </div>
+
       <p className="footnote">
-        坐标为近似值，可在地图上直接拖动这个点位来修正位置，改动会自动保存在本机。
+        坐标为近似值。点「调整位置」后这一个点位才能拖动，其余时候拖动地图就是平移地图。改动自动保存在本机。
       </p>
     </motion.div>
   )

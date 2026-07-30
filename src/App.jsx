@@ -12,7 +12,6 @@ import { Ambient } from './components/Ambient.jsx'
 import { TopBar } from './components/TopBar.jsx'
 import { Chips } from './components/Chips.jsx'
 import { Dock } from './components/Dock.jsx'
-import { Legend } from './components/Legend.jsx'
 import { Panel } from './components/Panel.jsx'
 import { Toast } from './components/Toast.jsx'
 import { Onboarding } from './components/Onboarding.jsx'
@@ -214,12 +213,14 @@ export default function App() {
       <DetailPanel
         point={selected}
         inDraft={s.draftStops.includes(selected.id)}
+        moving={s.movingId === selected.id}
         onAddToRoute={(id) => {
           s.addToDraft(id)
           s.openPanel('routes')
         }}
         onEdit={(id) => s.openEdit(id)}
         onDelete={handleDeletePoint}
+        onMove={(id) => (s.movingId === id ? s.endMove() : s.startMove(id))}
       />
     )
   } else if (s.panel === 'edit') {
@@ -308,10 +309,12 @@ export default function App() {
         routeColor={activeRoute?.color}
         draftStops={s.diyMode ? s.draftStops : undefined}
         selectedId={s.selectedId}
+        movingId={s.movingId}
         addMode={s.addMode}
         diyMode={s.diyMode}
         onSelect={handleSelect}
         onMovePoint={s.movePoint}
+        onMoveEnd={() => s.endMove()}
         onPlacePoint={handlePlacePoint}
         onTileTrouble={() =>
           s.notify('底图加载不太顺，检查一下网络连接', 'warn', 'alert')
@@ -340,11 +343,7 @@ export default function App() {
         />
       </TopBar>
 
-      <Legend enabled={s.enabled} />
-
       <Dock
-        onZoomIn={() => mapRef.current?.zoomIn()}
-        onZoomOut={() => mapRef.current?.zoomOut()}
         onFit={handleFit}
         onChecklist={() => s.openPanel('checklist')}
         onRoutes={() => s.openPanel('routes')}
