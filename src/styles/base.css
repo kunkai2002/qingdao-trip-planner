@@ -462,11 +462,17 @@ a:hover {
 .chip--on {
   color: var(--ink-1);
 }
+/* The off state must NOT be element opacity. That multiplies the label, the
+   count AND the pane's own tint, dropping the measured contrast of the app's
+   primary filter control to roughly 1.3:1 over a light tile — and tokens.css
+   says in as many words that lowering the tint silently breaks the text.
+   State is encoded structurally instead: filled capsule vs. bare, exactly the
+   filled-vs-outlined distinction Google Maps uses. */
 .chip--off {
-  opacity: 0.5;
+  color: var(--ink-2);
 }
 .chip--off .chip__glyph {
-  color: var(--ink-3);
+  opacity: 0.75;
 }
 .chip__fill {
   position: absolute;
@@ -490,7 +496,20 @@ a:hover {
   right: max(14px, env(safe-area-inset-right, 0px));
   bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
   z-index: 480;
-  transition: right var(--t-card) var(--e-out);
+  transition:
+    right var(--t-card) var(--e-out),
+    opacity var(--t-card) var(--e-out);
+}
+
+/* On a phone the sheet (z-520) covered the dock (z-480) completely, so all
+   four buttons were still hit-testable-looking but unreachable. A sheet that
+   tall has no room to float them above it, so they step aside instead —
+   the same thing Apple and Google do when a card is raised. */
+@media (max-width: 719px) {
+  .app[data-panel] .dock {
+    opacity: 0;
+    pointer-events: none;
+  }
   display: flex;
   flex-direction: column;
   gap: 9px;

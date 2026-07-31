@@ -13,7 +13,7 @@ const ANCHOR = [14, 29]
 
 export function makePinIcon(
   point,
-  { seq = 0, selected = false, inRoute = false, dim = false, moving = false } = {},
+  { seq = 0, selected = false, inRoute = false, dim = false, moving = false, nudge } = {},
 ) {
   const cat = CATS[point.cat] || CATS.sight
   const cls = [
@@ -31,8 +31,15 @@ export function makePinIcon(
      every major map app honours, so the tappable area is decoupled from the
      drawn area. It overflows .pin deliberately; clicks bubble to the Leaflet
      icon element either way. */
+  /* Two points can share a coordinate (lenbach and dianwan both sit at
+     36.068/120.377). Superimposed, the one appended last wins every tap and
+     the other is unreachable on the map, so co-located pins fan out slightly
+     and a leader dot marks the true anchor. */
+  const shift = nudge ? `translate(${nudge[0]}px,${nudge[1]}px)` : ''
   const html =
-    `<div class="${cls}" style="--pin-c:${catColor(point.cat)}">` +
+    `<div class="${cls}${nudge ? ' pin--nudged' : ''}" style="--pin-c:${catColor(point.cat)}${
+      shift ? `;transform:${shift}` : ''
+    }">` +
     `<span class="pin__hit"></span>` +
     `<span class="pin__tip"></span>` +
     `<span class="pin__drop">${iconMarkup(cat.icon, { size: 13, strokeWidth: 2.1 })}</span>` +

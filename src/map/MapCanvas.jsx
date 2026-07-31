@@ -16,8 +16,6 @@ const TILES = {
   },
 }
 
-const LONG_PRESS_MS = 520
-
 /* Clustering: bucket points into a pixel grid at the current zoom. A grid is
    enough here (a few dozen points) and, unlike leaflet.markercluster, it keeps
    marker ownership in this component so the existing reconcile-by-id and
@@ -84,6 +82,8 @@ export const MapCanvas = forwardRef(function MapCanvas(
 
   // Handlers change every render; keep Leaflet bound to a stable box.
   cbRef.current = { onSelect, onMovePoint, onMoveEnd, onPlacePoint, onTileTrouble }
+  const modeRef = useRef({})
+  modeRef.current = { addMode, diyMode }
 
   /* ---------------- create once ---------------- */
   useEffect(() => {
@@ -92,6 +92,8 @@ export const MapCanvas = forwardRef(function MapCanvas(
       attributionControl: false,
       zoomSnap: 0.5,
       wheelPxPerZoomLevel: 110,
+      // needed so Android/touch long-press raises `contextmenu` too
+      tapHold: true,
     }).setView(wgs2gcj(36.062, 120.384), 13)
     mapRef.current = map
     if (import.meta.env.DEV) window.__map = map
@@ -122,36 +124,21 @@ export const MapCanvas = forwardRef(function MapCanvas(
     // recluster once the view settles
     map.on('zoomend moveend', () => setClusterTick((n) => n + 1))
 
-    /* Long-press on empty map drops a new point there. Leaflet still emits a
-       click on release, so swallow the next one once the press has fired. */
-    let pressTimer = 0
-    let pressLatLng = null
-    let swallowClick = false
-    const clearPress = () => {
-      if (pressTimer) clearTimeout(pressTimer)
-      pressTimer = 0
-      pressLatLng = null
-    }
-    map.on('mousedown', (e) => {
-      clearPress()
-      swallowClick = false
-      pressLatLng = e.latlng
-      pressTimer = window.setTimeout(() => {
-        pressTimer = 0
-        if (!pressLatLng) return
-        swallowClick = true
-        cbRef.current.onPlacePoint?.(pressLatLng, true)
-      }, LONG_PRESS_MS)
+    /* Long-press on empty map drops a new point there.
+       This used to be a 520ms timer armed on Leaflet's `mousedown`. That is
+       dead on touch: Leaflet binds only DOM mouse events to the container, and
+       the compat mousedown/mouseup pair is dispatched back-to-back after
+       touchend, so the timer could never elapse — on the one form factor where
+       long-press is the natural gesture. `contextmenu` is the single event that
+       covers desktop right-click, iOS TapHold and Android native long-press,
+       and Leaflet preventDefaults it so no OS menu appears. */
+    map.on('contextmenu', (e) => {
+      const el = e.originalEvent?.target
+      if (el instanceof Element && el.closest('.leaflet-marker-icon')) return
+      cbRef.current.onPlacePoint?.(e.latlng, true)
     })
-    map.on('mouseup movestart zoomstart dragstart', clearPress)
 
-    map.on('click', (e) => {
-      if (swallowClick) {
-        swallowClick = false
-        return
-      }
-      cbRef.current.onPlacePoint?.(e.latlng, false)
-    })
+    map.on('click', (e) => cbRef.current.onPlacePoint?.(e.latlng, false))
 
     let tileErrors = 0
     const onTileError = () => {
@@ -162,7 +149,6 @@ export const MapCanvas = forwardRef(function MapCanvas(
 
     return () => {
       map.off()
-      clearPress()
       onMoveEnd()
       map.remove()
       mapRef.current = null
@@ -207,6 +193,14 @@ export const MapCanvas = forwardRef(function MapCanvas(
         m = L.marker([p.lat, p.lng], { icon: makePinIcon(p), draggable: false, riseOnHover: true })
         m.on('click', (e) => {
           L.DomEvent.stopPropagation(e)
+          /* With add-mode armed, a pin's 44x44 hit disc used to swallow the tap
+             and open its detail instead of placing the new point — add-mode was
+             never consulted and never cleared. Dense areas are exactly where
+             you want to add something. */
+          if (modeRef.current.addMode) {
+            cbRef.current.onPlacePoint?.(e.latlng ?? m.getLatLng(), false)
+            return
+          }
           cbRef.current.onSelect?.(p.id)
         })
         m.on('dragstart', () => {
@@ -276,6 +270,25 @@ export const MapCanvas = forwardRef(function MapCanvas(
 
     const soloIds = new Set(solo.map((p) => p.id))
 
+    /* Fan out pins that land on the same pixel, so none is unreachable. */
+    const nudges = new Map()
+    const cell = new Map()
+    solo.forEach((p) => {
+      const pt = map.project([p.lat, p.lng], zoom)
+      const key = `${Math.round(pt.x / 14)}:${Math.round(pt.y / 14)}`
+      const group = cell.get(key)
+      if (group) group.push(p.id)
+      else cell.set(key, [p.id])
+    })
+    cell.forEach((group) => {
+      if (group.length < 2) return
+      const r = 13 + group.length
+      group.forEach((id, i) => {
+        const a = (i / group.length) * Math.PI * 2 - Math.PI / 2
+        nudges.set(id, [Math.round(Math.cos(a) * r), Math.round(Math.sin(a) * r * 0.7)])
+      })
+    })
+
     // individual markers
     points.forEach((p) => {
       const m = markersRef.current.get(p.id)
@@ -285,6 +298,21 @@ export const MapCanvas = forwardRef(function MapCanvas(
       if (!show && map.hasLayer(m)) map.removeLayer(m)
       if (!show) return
       const seq = draftIndex.get(p.id) || routeIndex.get(p.id) || 0
+      const nudge = nudges.get(p.id)
+      /* Rebuilding the icon re-parses the whole pin subtree including its SVG
+         and restarts every CSS animation on it — the selected pin's pulse and
+         the armed pin's lift were resetting on every pan and every keystroke.
+         Only rebuild when the rendered state actually changed. */
+      const key = [
+        seq,
+        selectedId === p.id ? 1 : 0,
+        seq > 0 ? 1 : 0,
+        hasRoute && seq === 0 ? 1 : 0,
+        movingId === p.id ? 1 : 0,
+        nudge ? nudge.join(',') : '',
+      ].join('|')
+      if (m._iconKey === key) return
+      m._iconKey = key
       m.setIcon(
         makePinIcon(p, {
           seq,
@@ -292,6 +320,7 @@ export const MapCanvas = forwardRef(function MapCanvas(
           inRoute: seq > 0,
           dim: hasRoute && seq === 0,
           moving: movingId === p.id,
+          nudge,
         }),
       )
     })
@@ -404,25 +433,51 @@ export const MapCanvas = forwardRef(function MapCanvas(
   }, [addMode, diyMode])
 
   /* ---------------- imperative API ---------------- */
+  /* Both camera helpers take the same inset object describing how much of the
+     viewport is currently covered by chrome (top bar, right rail, bottom
+     sheet), so they always frame into the rect the user can actually see. */
   useImperativeHandle(ref, () => ({
     zoomIn: () => mapRef.current?.zoomIn(1),
     zoomOut: () => mapRef.current?.zoomOut(1),
-    fit(coords, padRight) {
+    fit(coords, inset = {}) {
       const map = mapRef.current
       if (!map || !coords?.length) return
+      const { top = 0, right = 0, bottom = 0, left = 0 } = inset
       map.fitBounds(L.latLngBounds(coords), {
-        paddingTopLeft: [24, 130],
-        paddingBottomRight: [padRight || 24, 96],
+        paddingTopLeft: [24 + left, 130 + top],
+        paddingBottomRight: [24 + right, 96 + bottom],
         animate: true,
         duration: 0.6,
         easeLinearity: 0.24,
       })
     },
-    focus(lat, lng, offsetX = 0) {
+    /* ADD, not subtract. Centring on point-minus-offset puts the point on the
+       covered side — it used to pan the selected pin straight under the panel
+       that had just opened over it. Centring on point-plus-offset pushes it
+       into the visible half. */
+    focus(lat, lng, inset = {}) {
       const map = mapRef.current
       if (!map) return
-      const target = map.project([lat, lng], map.getZoom()).subtract([offsetX / 2, 40])
-      map.panTo(map.unproject(target, map.getZoom()), { animate: true, duration: 0.45 })
+      const { right = 0, bottom = 0, top = 0, left = 0 } = inset
+      const z = map.getZoom()
+      const dest = map.unproject(
+        map.project([lat, lng], z).add([(right - left) / 2, (bottom - top) / 2]),
+        z,
+      )
+      /* Decide the animation explicitly. Leaflet quietly declines to animate a
+         pan longer than roughly one viewport, and the request is then dropped
+         rather than applied — which showed up as selecting a far-away point
+         (崂山, 金沙滩) simply not moving the map at all. */
+      const offset = map
+        .latLngToContainerPoint(dest)
+        .subtract(map.latLngToContainerPoint(map.getCenter()))
+      const size = map.getSize()
+      const near = Math.abs(offset.x) <= size.x * 0.8 && Math.abs(offset.y) <= size.y * 0.8
+      /* setView, never panTo: panTo drops the request outright when it decides
+         the distance is too long or another pan is still settling, so selecting
+         a distant point silently did nothing. setView always applies the view
+         and merely decides whether to animate getting there. */
+      map.setView(dest, z, { animate: near, duration: 0.45 })
     },
   }))
 

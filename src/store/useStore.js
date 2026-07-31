@@ -54,6 +54,11 @@ function fromLegacyRoute(r) {
 
 const allEnabled = () => CAT_ORDER.reduce((a, k) => ({ ...a, [k]: true }), {})
 
+/** Every interaction mode back to rest. Anything that swaps the point set out
+    from under the user (import, reset) must apply this, or modes keep pointing
+    at ids that no longer exist. */
+const IDLE_MODES = { movingId: null, addMode: false, diyMode: false, draftStops: [] }
+
 function initialTheme() {
   const saved = read(KEYS.theme)
   return saved === 'light' || saved === 'dark' ? saved : 'auto'
@@ -193,8 +198,20 @@ export const useStore = create((set, get) => ({
   openPanel(panel) {
     set({ panel })
   },
+  /* Closing the sheet must also end any mode it was hosting. `movingId` used to
+     outlive its own cancel button: the armed marker kept dragging enabled and
+     was force-excluded from clustering, so a thumb landing on it while panning
+     silently moved and persisted the point, and the only control that ends the
+     mode was back inside that point's detail. */
   closePanel() {
-    set({ panel: null, selectedId: null, editingId: null, pendingLatLng: null })
+    get().endMove(false)
+    set({
+      panel: null,
+      selectedId: null,
+      editingId: null,
+      pendingLatLng: null,
+      addMode: false,
+    })
   },
   openDetail(id) {
     set({ panel: 'detail', selectedId: id, editingId: null })
@@ -255,6 +272,8 @@ export const useStore = create((set, get) => ({
       draftStops: s.draftStops.filter((x) => x !== id),
       panel: null,
       selectedId: null,
+      // otherwise a later endMove() announces a saved position for a dead point
+      movingId: s.movingId === id ? null : s.movingId,
     }))
     get().persist()
     get().notify(`已删除「${p?.name || ''}」`, 'bad', 'trash')
@@ -427,12 +446,19 @@ export const useStore = create((set, get) => ({
     try {
       const d = JSON.parse(text)
       if (!Array.isArray(d.points) || !d.points.length) throw new Error('no points')
+      const points = d.points.map(fromLegacyPoint)
+      const ids = new Set(points.map((p) => p.id))
       set({
-        points: d.points.map(fromLegacyPoint),
-        myRoutes: (d.myRoutes || d.routes || []).map(fromLegacyRoute),
+        points,
+        // drop stops pointing at points the incoming backup does not contain,
+        // or they render as nothing yet still count and get saved into routes
+        myRoutes: (d.myRoutes || d.routes || [])
+          .map(fromLegacyRoute)
+          .map((r) => ({ ...r, stops: r.stops.filter((id) => ids.has(id)) })),
         activeRouteId: null,
         panel: null,
         selectedId: null,
+        ...IDLE_MODES,
       })
       if (Array.isArray(d.checklist)) {
         set({ checklist: d.checklist })
@@ -453,10 +479,9 @@ export const useStore = create((set, get) => ({
       enabled: allEnabled(),
       metroOn: true,
       activeRouteId: null,
-      draftStops: [],
-      diyMode: false,
       panel: null,
       selectedId: null,
+      ...IDLE_MODES,
     })
     get().persist()
     get().notify('已恢复默认数据', 'info', 'refresh')

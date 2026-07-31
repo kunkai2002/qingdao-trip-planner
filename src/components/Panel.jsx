@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { motion, useDragControls, useMotionValue, useTransform, useReducedMotion } from 'framer-motion'
 import { Icon } from '../icons/Icon.jsx'
 import { GlassButton } from './Glass.jsx'
@@ -24,12 +24,36 @@ export function Panel({ eyebrowIcon, eyebrow, title, onClose, children, footer, 
     bodyRef.current?.scrollTo({ top: 0 })
   }, [resetKey, bodyRef])
 
+  /* Publish how much of the map this pane is covering, so the camera can frame
+     into the *visible* rect instead of the whole viewport — the same idea as
+     Apple's sheet-as-safe-area-inset and Google's GoogleMap.setPadding. On
+     desktop the pane is side-mounted, so it contributes no bottom inset. */
+  const paneRef = useRef(null)
+  useEffect(() => {
+    const root = document.documentElement
+    if (desktop) {
+      root.style.setProperty('--panel-h', '0px')
+      return () => root.style.setProperty('--panel-h', '0px')
+    }
+    const el = paneRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      root.style.setProperty('--panel-h', Math.round(entry.contentRect.height) + 'px')
+    })
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      root.style.setProperty('--panel-h', '0px')
+    }
+  }, [desktop])
+
   const y = useMotionValue(0)
   const dragOpacity = useTransform(y, [0, 260], [1, 0.42])
   const dragScale = useTransform(y, [0, 260], [1, 0.965])
 
   return (
     <motion.section
+      ref={paneRef}
       className="glass glass--raised glass--drift panel"
       variants={panelVariants(reduced, desktop)}
       initial="hidden"

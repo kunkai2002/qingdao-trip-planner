@@ -71,12 +71,25 @@ export default function App() {
 
   const selected = s.selectedId ? s.getPoint(s.selectedId) : null
   const distanceOf = useCallback((stops) => routeDistance(s, stops || []), [s.points])
-  const panelInset = desktop && s.panel ? 436 : 24
+
+  /* How much of the map the chrome is covering right now. On desktop the panel
+     is a right rail; on phones it is a bottom sheet whose live height Panel
+     publishes as --panel-h. Both camera calls frame into what is left. */
+  const mapInset = useCallback(() => {
+    if (!s.panel) return {}
+    if (desktop) return { right: 420 }
+    const h = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--panel-h'),
+      10,
+    )
+    return { bottom: Number.isFinite(h) ? h : 0 }
+  }, [s.panel, desktop])
 
   /* ---------------- map focus follows selection ---------------- */
   useEffect(() => {
     if (!selected || s.panel !== 'detail') return
-    mapRef.current?.focus(selected.lat, selected.lng, desktop ? 404 : 0)
+    if (import.meta.env.DEV) window.__mapApi = mapRef.current
+    mapRef.current?.focus(selected.lat, selected.lng, mapInset())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.selectedId, s.panel])
 
@@ -119,7 +132,7 @@ export default function App() {
       s.notify('当前没有可见的点位，先打开一个图层', 'warn', 'alert')
       return
     }
-    mapRef.current?.fit(coords, panelInset)
+    mapRef.current?.fit(coords, mapInset())
   }
 
   const handleDeletePoint = async (id) => {
@@ -254,7 +267,7 @@ export default function App() {
           s.showRoute(id)
           const rt = s.getRoute(id)
           const coords = routeCoords(useStore.getState(), rt.stops)
-          if (coords.length) mapRef.current?.fit(coords, panelInset)
+          if (coords.length) mapRef.current?.fit(coords, mapInset())
         }}
         onClearRoute={s.clearRoute}
         onDeleteRoute={handleDeleteRoute}
@@ -334,7 +347,7 @@ export default function App() {
         results={visible.slice(0, 20)}
         onPick={(id) => {
           const p = s.getPoint(id)
-          if (p) mapRef.current?.focus(p.lat, p.lng, desktop ? 404 : 0)
+          if (p) mapRef.current?.focus(p.lat, p.lng, desktop ? { right: 420 } : {})
           s.setQuery('')
           s.openDetail(id)
         }}

@@ -39,7 +39,9 @@ export function TopBar({
           </span>
           <span className="brand__text">
             <span className="brand__title">青岛一图流</span>
-            <span className="brand__sub">点位可拖动 · 长按空白加点</span>
+            {/* Was "点位可拖动 · 长按空白加点" — the first half stopped being
+                true when markers became draggable:false by design. */}
+            <span className="brand__sub">长按空白处加点 · 详情里可调位置</span>
           </span>
         </GlassSurface>
 
