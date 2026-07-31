@@ -200,7 +200,10 @@ a:hover {
   left: 0;
   right: 0;
   z-index: 500;
-  padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 0
+  /* The right inset was missing, so in landscape on a notched phone the menu
+     button sat under the rounded corner. */
+  padding: calc(env(safe-area-inset-top, 0px) + 10px)
+    max(12px, env(safe-area-inset-right, 0px)) 0
     max(12px, env(safe-area-inset-left, 0px));
   pointer-events: none;
   display: flex;
@@ -456,6 +459,9 @@ a:hover {
 }
 
 /* ---- layer chips ---- */
+/* The row scrolls but gave no sign of it, so the layers past the right edge
+   were effectively undiscoverable. A mask fades the last few pixels, which is
+   the standard cue and costs no extra element. */
 .chips {
   display: flex;
   gap: 7px;
@@ -463,6 +469,13 @@ a:hover {
   padding: 1px 2px 3px;
   margin: -1px -2px -3px;
   align-items: center;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent);
+}
+/* once scrolled to the end there is nothing more to hint at */
+.chips[data-end='1'] {
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 .chip {
   --radius: var(--r-pill);

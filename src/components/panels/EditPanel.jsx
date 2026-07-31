@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Icon } from '../../icons/Icon.jsx'
 import { GlassButton } from '../Glass.jsx'
@@ -41,9 +41,21 @@ function toForm(p) {
   }
 }
 
-export function EditPanel({ point, isNew, onSave, onCancel, onNotify }) {
+export function EditPanel({ point, isNew, onSave, onCancel, onNotify, onDirtyChange }) {
   const [f, setF] = useState(() => toForm(point))
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }))
+
+  /* Tell the shell whether there is unsaved work, so closing the sheet can ask
+     before discarding it. The form lives entirely in local state, so without
+     this a stray Escape or a tap on the map silently threw the edits away. */
+  const pristine = useRef(JSON.stringify(toForm(point)))
+  useEffect(() => {
+    pristine.current = JSON.stringify(toForm(point))
+  }, [point])
+  useEffect(() => {
+    onDirtyChange?.(JSON.stringify(f) !== pristine.current)
+    return () => onDirtyChange?.(false)
+  }, [f, onDirtyChange])
 
   const catOptions = useMemo(
     () => CAT_ORDER.map((k) => ({ value: k, label: CATS[k].name })),

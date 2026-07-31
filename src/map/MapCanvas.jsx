@@ -163,15 +163,36 @@ export const MapCanvas = forwardRef(function MapCanvas(
 
     map.on('click', (e) => cbRef.current.onPlacePoint?.(e.latlng, false))
 
+    /* Tile failure has to be recoverable, not a one-shot toast. The counter
+       used to only ever climb, so a brief dropout permanently armed the
+       warning and a genuine outage never re-reported once the user came back
+       online. Successes decay the count, and going back online forces a
+       redraw so the map repairs itself instead of staying grey. */
     let tileErrors = 0
-    const onTileError = () => {
+    let warned = false
+    map.on('tileerror', () => {
       tileErrors += 1
-      if (tileErrors === 8) cbRef.current.onTileTrouble?.()
+      if (tileErrors >= 8 && !warned) {
+        warned = true
+        cbRef.current.onTileTrouble?.(true)
+      }
+    })
+    map.on('tileload', () => {
+      if (tileErrors > 0) tileErrors -= 1
+      if (warned && tileErrors === 0) {
+        warned = false
+        cbRef.current.onTileTrouble?.(false)
+      }
+    })
+    const onOnline = () => {
+      tileErrors = 0
+      tileRef.current?.redraw()
     }
-    map.on('tileerror', onTileError)
+    window.addEventListener('online', onOnline)
 
     return () => {
       map.off()
+      window.removeEventListener('online', onOnline)
       onMoveEnd()
       map.remove()
       mapRef.current = null

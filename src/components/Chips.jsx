@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Icon } from '../icons/Icon.jsx'
 import { GlassButton } from './Glass.jsx'
@@ -10,8 +11,29 @@ import { T, SPRING } from '../lib/motion.js'
  * scaling out from the chip rather than fading flatly.
  */
 export function Chips({ counts, enabled, metroOn, onToggleCat, onToggleMetro, onRoutes, routeActive }) {
+  const rowRef = useRef(null)
+
+  // drop the fade once there is nothing left to scroll to
+  useEffect(() => {
+    const el = rowRef.current
+    if (!el) return
+    const update = () => {
+      const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2
+      el.dataset.end = end ? '1' : '0'
+    }
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => {
+      el.removeEventListener('scroll', update)
+      ro.disconnect()
+    }
+  }, [])
+
   return (
     <motion.div
+      ref={rowRef}
       className="chips no-scrollbar"
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}

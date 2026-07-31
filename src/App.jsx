@@ -156,7 +156,7 @@ export default function App() {
         if (typing && s.query) {
           s.setQuery('')
           t.blur()
-        } else if (s.panel) s.closePanel()
+        } else if (s.panel) requestClose()
         return
       }
       /* `/` only fired when focus was literally on <body>, so it stopped
@@ -172,6 +172,27 @@ export default function App() {
   }, [s.panel, s.showIntro, dialog.state, s])
 
   /* ---------------- handlers ---------------- */
+
+  /* Closing the edit sheet with unsaved changes used to discard them without a
+     word — the form is local state, so Escape, the close button, a drag-dismiss
+     or a tap on the map all threw the work away silently. */
+  const editDirtyRef = useRef(false)
+  const requestClose = useCallback(async () => {
+    if (s.panel === 'edit' && editDirtyRef.current) {
+      const ok = await dialog.confirm({
+        kicker: '未保存的修改',
+        title: '放弃这次编辑？',
+        body: '你改动的内容还没有保存，关闭后会丢失。',
+        tone: 'danger',
+        confirmLabel: '放弃修改',
+        cancelLabel: '继续编辑',
+      })
+      if (!ok) return
+      editDirtyRef.current = false
+    }
+    s.closePanel()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.panel, s.closePanel, dialog])
 
   const handleSelect = (id) => {
     if (s.diyMode) {
@@ -312,8 +333,18 @@ export default function App() {
         point={editing}
         isNew={!editing}
         onNotify={s.notify}
-        onSave={(data) => s.savePoint(s.editingId, data)}
-        onCancel={() => (editing ? s.openDetail(editing.id) : s.closePanel())}
+        onDirtyChange={(d) => (editDirtyRef.current = d)}
+        onSave={(data) => {
+          editDirtyRef.current = false
+          s.savePoint(s.editingId, data)
+        }}
+        onCancel={() => {
+          if (editDirtyRef.current) {
+            requestClose()
+            return
+          }
+          editing ? s.openDetail(editing.id) : s.closePanel()
+        }}
       />
     )
   } else if (s.panel === 'routes') {
@@ -397,8 +428,10 @@ export default function App() {
         onMovePoint={s.movePoint}
         onMoveEnd={() => s.endMove()}
         onPlacePoint={handlePlacePoint}
-        onTileTrouble={() =>
-          s.notify('底图加载不太顺，检查一下网络连接', 'warn', 'alert')
+        onTileTrouble={(bad) =>
+          bad
+            ? s.notify('底图加载不上，检查网络。点位和路线仍可正常使用', 'warn', 'alert')
+            : s.notify('底图已恢复', 'good', 'checkCircle')
         }
       />
       </ErrorBoundary>
@@ -455,7 +488,7 @@ export default function App() {
             eyebrow={meta.eyebrow}
             eyebrowIcon={meta.eyebrowIcon}
             title={meta.title}
-            onClose={s.closePanel}
+            onClose={requestClose}
             resetKey={`${s.panel}:${s.selectedId || ''}`}
             initialDetent={meta.detent || 'half'}
           >
