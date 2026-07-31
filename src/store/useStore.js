@@ -131,6 +131,7 @@ export const useStore = create((set, get) => ({
   locating: false,
 
   /* ---- ephemeral ---- */
+  _storageWarned: false,
   toast: null,
   showIntro: false,
   ready: false,
@@ -173,13 +174,22 @@ export const useStore = create((set, get) => ({
     })
   },
 
+  /* Saying 已保存 when the write failed is worse than saying nothing: the trip
+     lives only in localStorage, so a silent failure (quota full, Safari private
+     mode) means the user believes their edits are safe when they are not.
+     Warned once per session, because a full quota fails on every keystroke. */
   persist() {
     const { points, myRoutes, enabled, metroOn } = get()
-    write(KEYS.data, { v: 2, points, myRoutes, enabled, metroOn })
+    const ok = write(KEYS.data, { v: 2, points, myRoutes, enabled, metroOn })
+    if (!ok && !get()._storageWarned) {
+      set({ _storageWarned: true })
+      get().notify('保存失败：浏览器存储已满或处于隐私模式。请立刻「导出备份」', 'bad', 'alert')
+    }
+    return ok
   },
 
   persistChecklist() {
-    write(KEYS.checklist, { groups: get().checklist })
+    return write(KEYS.checklist, { groups: get().checklist })
   },
 
   /* ================= toast ================= */
@@ -326,9 +336,10 @@ export const useStore = create((set, get) => ({
       set((s) => ({ points: [...s.points, fresh], pendingLatLng: null }))
       id = fresh.id
     }
-    get().persist()
+    const ok = get().persist()
     set({ panel: 'detail', selectedId: id, editingId: null })
-    get().notify('已保存', 'good', 'checkCircle')
+    // persist() has already explained itself if the write failed
+    if (ok) get().notify('已保存', 'good', 'checkCircle')
     return id
   },
 

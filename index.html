@@ -3,10 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#eaf0f2" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0b1418" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#101b21">
 <meta name="description" content="青岛一图流 · 行程规划器 —— 景点、住宿、餐厅、娱乐、地铁一张图看完，可编辑、可自建路线、可离线备份。">
 <title>青岛一图流 · 行程规划器</title>
+
+<!-- The tiles come from a third party; warming the connections early saves a
+     DNS + TLS round trip before the first tile can even be requested. -->
+<link rel="preconnect" href="https://webrd01.is.autonavi.com" crossorigin>
+<link rel="preconnect" href="https://webrd02.is.autonavi.com" crossorigin>
+<link rel="dns-prefetch" href="https://webrd03.is.autonavi.com">
+<link rel="dns-prefetch" href="https://webrd04.is.autonavi.com">
+
+<!-- Installing to the home screen is not decoration here: iOS Safari evicts
+     script-writable storage after 7 days without interaction, and an installed
+     web app is exempt. This is the only real protection for a trip that lives
+     entirely in localStorage. -->
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="青岛一图流">
 </head>
 <body>
 <div id="root"></div>

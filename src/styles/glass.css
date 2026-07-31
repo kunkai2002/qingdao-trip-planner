@@ -284,15 +284,56 @@
 }
 
 /* Safety net: without backdrop-filter, raise the tint so text stays legible. */
+/* Without backdrop-filter there is no blur to carry the material, so the pane
+   goes near-opaque. It must go opaque DARK: the ink is light in both themes
+   since the chrome became dark glass, and this block used to force a white
+   tint — which rendered the entire UI white-on-white on any browser lacking
+   backdrop-filter. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass {
-    --g-tint-a: rgba(255, 255, 255, 0.95);
-    --g-tint-b: rgba(255, 255, 255, 0.9);
-    --g-tint-c: rgba(255, 255, 255, 0.93);
+    --g-tint-a: rgba(var(--g-base), 0.97);
+    --g-tint-b: rgba(var(--g-base), 0.95);
+    --g-tint-c: rgba(var(--g-base), 0.96);
+    --sheen: 0.3;
   }
-  :root[data-theme='dark'] .glass {
-    --g-tint-a: rgba(22, 38, 46, 0.95);
-    --g-tint-b: rgba(16, 30, 37, 0.93);
-    --g-tint-c: rgba(20, 35, 43, 0.94);
+}
+
+/* Some people ask the OS to cut transparency. Honour it: keep the shape, the
+   rim and the shadows, drop the see-through. */
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    --g-tint-a: rgba(var(--g-base), 0.98);
+    --g-tint-b: rgba(var(--g-base), 0.97);
+    --g-tint-c: rgba(var(--g-base), 0.98);
+    --sheen: 0.25;
+    --grain: 0;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .ambient {
+    display: none;
+  }
+}
+
+/* Windows High Contrast and similar: the system owns the palette. Translucent
+   panes and conic rims are meaningless there, so get out of the way and make
+   sure every pane still has a real border. */
+@media (forced-colors: active) {
+  .glass {
+    background: Canvas;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border: 1px solid CanvasText;
+    box-shadow: none;
+  }
+  .glass::before,
+  .glass::after,
+  .ambient,
+  .ripple {
+    display: none;
+  }
+  .pin__drop,
+  .cluster__inner {
+    forced-color-adjust: none;
   }
 }

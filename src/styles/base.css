@@ -170,17 +170,7 @@ a:hover {
   }
 }
 
-/* Grain over the whole canvas ties map and glass into one image. */
-.grain {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  pointer-events: none;
-  opacity: 0.038;
-  background-image: var(--grain-tex);
-  background-size: 130px 130px;
-  mix-blend-mode: overlay;
-}
+/* (.grain was removed along with the element — it read as dust on the map.) */
 
 @media (prefers-reduced-motion: reduce) {
   .ambient__blob {
@@ -413,7 +403,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 42px;
+  height: 44px;
   padding: 0 12px;
   color: var(--ink-3);
 }
@@ -454,8 +444,8 @@ a:hover {
 
 .iconbtn {
   --radius: var(--r-md);
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   flex: none;
   display: grid;
   place-items: center;
@@ -482,8 +472,11 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 34px;
-  padding: 0 13px 0 11px;
+  /* 44px, not the 34px this started at. The pin trick (an oversized invisible
+     child) cannot work here because .gbtn clips to its own shape to contain the
+     click ripple, so the drawn control simply has to meet the touch minimum. */
+  height: 44px;
+  padding: 0 14px 0 12px;
   font-size: var(--fs-sub);
   font-weight: 600;
   color: var(--ink-2);
