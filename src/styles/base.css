@@ -363,6 +363,34 @@ a:hover {
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
+.results__hidden {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 10px 13px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-align: left;
+  color: var(--ink-2);
+  background: color-mix(in srgb, var(--warn) 15%, transparent);
+  box-shadow: inset 0 -1px 0 var(--g-hairline);
+}
+.results__hidden b {
+  color: var(--ink-1);
+  font-variant-numeric: tabular-nums;
+}
+.results__hiddenAction {
+  margin-left: auto;
+  flex: none;
+  font-weight: 700;
+  color: var(--warn);
+  white-space: nowrap;
+}
+.results__hidden:hover .results__hiddenAction {
+  text-decoration: underline;
+}
+
 .results__empty {
   display: flex;
   align-items: flex-start;
@@ -531,6 +559,9 @@ a:hover {
   width: 56px;
   height: 56px;
   color: #fff;
+}
+.dock__btn--located {
+  color: #6bb0ff;
 }
 .dock__btn--armed {
   color: #fff;

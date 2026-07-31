@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useStore, visiblePoints, routeCoords, routeDistance } from './store/useStore.js'
+import { useStore, routeCoords, routeDistance } from './store/useStore.js'
+import { runSearch, countByCat } from './lib/search.js'
 import { CATS, CAT_ORDER } from './data/categories.js'
 import { PRESET_ROUTES } from './data/routes.js'
 import { initGlassPointer } from './lib/glassPointer.js'
@@ -49,15 +50,20 @@ export default function App() {
   }, [s.theme])
 
   /* ---------------- derived ---------------- */
-  const visible = useMemo(() => visiblePoints(s), [s.points, s.enabled, s.query])
+  const search = useMemo(() => runSearch(s), [s.points, s.enabled, s.query])
+  const visible = search.shown
   const visibleIds = useMemo(() => new Set(visible.map((p) => p.id)), [visible])
+  const searching = !!search.query
 
+  /* Chip counts follow the query, so a filtered map and its own filter row can
+     never disagree — and a closed chip still advertises what turning it back on
+     would restore, which is why this ignores `enabled`. */
   const counts = useMemo(() => {
+    const base = countByCat(searching ? search.matched : s.points)
     const c = {}
-    CAT_ORDER.forEach((k) => (c[k] = 0))
-    s.points.forEach((p) => (c[p.cat] = (c[p.cat] || 0) + 1))
+    CAT_ORDER.forEach((k) => (c[k] = base[k] || 0))
     return c
-  }, [s.points])
+  }, [s.points, search.matched, searching])
 
   const activeRoute = useMemo(
     () => (s.activeRouteId ? s.allRoutes().find((r) => r.id === s.activeRouteId) : null),
@@ -92,6 +98,41 @@ export default function App() {
     mapRef.current?.focus(selected.lat, selected.lng, mapInset())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.selectedId, s.panel])
+
+  /* Fly to the user once a fix arrives, zooming in only if we are further out
+     than street level — otherwise a locate would throw away their zoom. */
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !s.userPos) return
+    map.focus(s.userPos.lat, s.userPos.lng, mapInset())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.userPos])
+
+  /* ---------------- the camera follows the query ----------------
+     Matches were often nowhere near the opening viewport (the three 崂山 hits
+     sit 25km east), so the map appeared to simply empty out. Debounced so it
+     does not lurch on every keystroke, and the pre-search view is restored when
+     the query clears, making search a non-destructive excursion. */
+  const savedViewRef = useRef(null)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (!searching) {
+      if (savedViewRef.current) {
+        map.restoreView(savedViewRef.current)
+        savedViewRef.current = null
+      }
+      return
+    }
+    if (!savedViewRef.current) savedViewRef.current = map.getView()
+    const t = setTimeout(() => {
+      const coords = visible.map((p) => [p.lat, p.lng])
+      if (coords.length > 1) map.fit(coords, mapInset())
+      else if (coords.length === 1) map.focus(coords[0][0], coords[0][1], mapInset())
+    }, 320)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searching, s.query, visible])
 
   /* ---------------- keyboard ---------------- */
   useEffect(() => {
@@ -323,6 +364,7 @@ export default function App() {
         draftStops={s.diyMode ? s.draftStops : undefined}
         selectedId={s.selectedId}
         movingId={s.movingId}
+        userPos={s.userPos}
         addMode={s.addMode}
         diyMode={s.diyMode}
         onSelect={handleSelect}
@@ -343,8 +385,10 @@ export default function App() {
         theme={s.theme}
         onTheme={s.cycleTheme}
         resultCount={visible.length}
-        filtering={!!s.query.trim()}
-        results={visible.slice(0, 20)}
+        filtering={searching}
+        results={search.ranked.filter((p) => s.enabled[p.cat]).slice(0, 20)}
+        hiddenByLayer={search.hiddenByLayer}
+        onEnableHidden={() => s.enableCats([...new Set(search.hiddenByLayer.map((p) => p.cat))])}
         onPick={(id) => {
           const p = s.getPoint(id)
           if (p) mapRef.current?.focus(p.lat, p.lng, desktop ? { right: 420 } : {})
@@ -365,6 +409,9 @@ export default function App() {
 
       <Dock
         onFit={handleFit}
+        onLocate={s.locate}
+        locating={s.locating}
+        located={!!s.userPos}
         onChecklist={() => s.openPanel('checklist')}
         onRoutes={() => s.openPanel('routes')}
         onAdd={s.armAdd}

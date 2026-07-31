@@ -154,6 +154,54 @@
 }
 
 /* ------------------------------------------------------------
+   The user's own position
+   ------------------------------------------------------------ */
+.userpos-wrap {
+  background: none;
+  border: 0;
+}
+.userpos {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 3px;
+  border-radius: 50%;
+  background: #2f7ef0;
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.95),
+    0 2px 6px -1px rgba(8, 26, 33, 0.5);
+}
+.userpos::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  background: rgba(47, 126, 240, 0.28);
+  animation: userPulse 2.4s var(--e-out) infinite;
+}
+@keyframes userPulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.6;
+  }
+  70%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .userpos::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+.userpos__halo {
+  fill: #2f7ef0;
+  fill-opacity: 0.1;
+}
+
+/* ------------------------------------------------------------
    Cluster bubbles
    ------------------------------------------------------------ */
 .cluster-wrap {

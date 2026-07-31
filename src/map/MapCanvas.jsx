@@ -59,6 +59,7 @@ export const MapCanvas = forwardRef(function MapCanvas(
     draftStops,
     selectedId,
     movingId,
+    userPos,
     addMode,
     diyMode,
     onSelect,
@@ -74,6 +75,7 @@ export const MapCanvas = forwardRef(function MapCanvas(
   const tileRef = useRef(null)
   const markersRef = useRef(new Map())
   const clusterLayerRef = useRef(null)
+  const userLayerRef = useRef(null)
   const zoomTickRef = useRef(0)
   const didFitRef = useRef(false)
   const linesRef = useRef({ metro: null, route: null, routeHalo: null, draft: null })
@@ -115,6 +117,7 @@ export const MapCanvas = forwardRef(function MapCanvas(
 
     const clusters = L.layerGroup().addTo(map)
     clusterLayerRef.current = clusters
+    userLayerRef.current = L.layerGroup().addTo(map)
 
     const root = document.documentElement
     const onMoveStart = () => root.setAttribute('data-map-moving', '1')
@@ -374,6 +377,29 @@ export const MapCanvas = forwardRef(function MapCanvas(
     setClusterTick((n) => n + 1)
   }, [points, visibleIds])
 
+  /* ---------------- the user's own position ---------------- */
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const layer = userLayerRef.current
+    if (!layer) return
+    layer.clearLayers()
+    if (!userPos) return
+    if (userPos.accuracy > 0) {
+      L.circle([userPos.lat, userPos.lng], {
+        radius: userPos.accuracy,
+        className: 'userpos__halo',
+        interactive: false,
+        stroke: false,
+      }).addTo(layer)
+    }
+    L.marker([userPos.lat, userPos.lng], {
+      icon: L.divIcon({ className: 'userpos-wrap', html: '<span class="userpos"></span>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+      interactive: false,
+      zIndexOffset: 800,
+    }).addTo(layer)
+  }, [userPos])
+
   /* ---------------- metro visibility ---------------- */
   useEffect(() => {
     const map = mapRef.current
@@ -439,6 +465,16 @@ export const MapCanvas = forwardRef(function MapCanvas(
   useImperativeHandle(ref, () => ({
     zoomIn: () => mapRef.current?.zoomIn(1),
     zoomOut: () => mapRef.current?.zoomOut(1),
+    /* Used to make searching a non-destructive excursion: the view is
+       snapshotted on the first keystroke and put back when the query clears. */
+    getView() {
+      const map = mapRef.current
+      return map ? { center: map.getCenter(), zoom: map.getZoom() } : null
+    },
+    restoreView(v) {
+      const map = mapRef.current
+      if (map && v) map.setView(v.center, v.zoom, { animate: false })
+    },
     fit(coords, inset = {}) {
       const map = mapRef.current
       if (!map || !coords?.length) return

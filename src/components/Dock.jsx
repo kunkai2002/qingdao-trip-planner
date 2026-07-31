@@ -40,6 +40,9 @@ function DockButton({ badge, delay = 0, children, ...rest }) {
    zoom, so it was three ways to do one thing and made the dock a tall stack. */
 export function Dock({
   onFit,
+  onLocate,
+  locating,
+  located,
   onChecklist,
   onRoutes,
   onAdd,
@@ -50,6 +53,23 @@ export function Dock({
 }) {
   return (
     <div className="dock">
+      <DockButton
+        className={`dock__btn ${located ? 'dock__btn--located' : ''}`}
+        onClick={onLocate}
+        title="定位到我的位置"
+        aria-label="定位到我的位置"
+        aria-busy={locating || undefined}
+        delay={0.03}
+      >
+        <motion.span
+          style={{ display: 'grid', placeItems: 'center' }}
+          animate={locating ? { opacity: [1, 0.35, 1] } : { opacity: 1 }}
+          transition={locating ? { duration: 1.2, repeat: Infinity } : { duration: 0.2 }}
+        >
+          <Icon name="navigation" size={20} />
+        </motion.span>
+      </DockButton>
+
       <DockButton
         className="dock__btn"
         onClick={onFit}

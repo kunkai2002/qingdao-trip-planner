@@ -20,6 +20,8 @@ export function TopBar({
   resultCount,
   filtering,
   results = [],
+  hiddenByLayer = [],
+  onEnableHidden,
   onPick,
   children,
 }) {
@@ -56,7 +58,8 @@ export function TopBar({
           <input
             value={query}
             onChange={(e) => onQuery(e.target.value)}
-            placeholder="搜索景点 / 餐厅 / 酒店 / 片区"
+            // "片区" was a lie: it is a meta-word, not a value in any record
+            placeholder="搜索名称 / 分类 / 片区，如「八大关」"
             autoComplete="off"
             spellCheck="false"
             aria-label="搜索点位"
@@ -115,6 +118,20 @@ export function TopBar({
               role="listbox"
               aria-label="搜索结果"
             >
+              {/* A closed layer must never silently swallow a hit. */}
+              {hiddenByLayer.length > 0 && (
+                <button
+                  type="button"
+                  className="results__hidden"
+                  onClick={onEnableHidden}
+                >
+                  <Icon name="eyeOff" size={16} />
+                  <span>
+                    另有 <b>{hiddenByLayer.length}</b> 个匹配被关闭的图层挡住了
+                  </span>
+                  <span className="results__hiddenAction">全部显示</span>
+                </button>
+              )}
               {results.length === 0 ? (
                 <div className="results__empty">
                   <Icon name="search" size={18} />

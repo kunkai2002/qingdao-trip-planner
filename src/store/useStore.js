@@ -96,6 +96,10 @@ export const useStore = create((set, get) => ({
      Exactly one point at a time can be armed for moving, from its detail panel. */
   movingId: null,
 
+  /* ---- geolocation ---- */
+  userPos: null,
+  locating: false,
+
   /* ---- ephemeral ---- */
   toast: null,
   showIntro: false,
@@ -174,6 +178,36 @@ export const useStore = create((set, get) => ({
     get().setTheme(order[(order.indexOf(get().theme) + 1) % order.length])
   },
 
+  /* Every major map has this and we had nothing — "fit to all points" is not
+     the same affordance for someone actually standing in Qingdao.
+     The device reports WGS-84; the basemap is GCJ-02, so the fix has to be
+     shifted or the blue dot lands a few hundred metres off. */
+  locate() {
+    if (!navigator.geolocation) {
+      get().notify('这个浏览器不支持定位', 'warn', 'alert')
+      return
+    }
+    if (get().locating) return
+    set({ locating: true })
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const [lat, lng] = wgs2gcj(pos.coords.latitude, pos.coords.longitude)
+        set({ userPos: { lat, lng, accuracy: pos.coords.accuracy || 0 }, locating: false })
+      },
+      (err) => {
+        set({ locating: false })
+        get().notify(
+          err.code === 1
+            ? '定位被拒绝了，请在浏览器地址栏的权限里允许位置'
+            : '定位失败，室内信号弱时常见，可稍后再试',
+          'warn',
+          'alert',
+        )
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+    )
+  },
+
   setBasemap(basemap) {
     set({ basemap })
     write(KEYS.basemap, basemap)
@@ -183,6 +217,10 @@ export const useStore = create((set, get) => ({
 
   toggleCat(key) {
     set((s) => ({ enabled: { ...s.enabled, [key]: !s.enabled[key] } }))
+    get().persist()
+  },
+  enableCats(keys) {
+    set((s) => ({ enabled: { ...s.enabled, ...Object.fromEntries(keys.map((k) => [k, true])) } }))
     get().persist()
   },
   toggleMetro() {
@@ -492,16 +530,8 @@ export const useStore = create((set, get) => ({
 /* derived selectors (kept out of state so they never go stale)         */
 /* ------------------------------------------------------------------ */
 
-/** Points passing the current layer filter + search query. */
-export function visiblePoints(state) {
-  const q = state.query.trim().toLowerCase()
-  return state.points.filter((p) => {
-    if (!state.enabled[p.cat]) return false
-    if (!q) return true
-    const hay = `${p.name} ${p.area || ''} ${p.address || ''} ${(p.tags || []).join(' ')}`
-    return hay.toLowerCase().includes(q)
-  })
-}
+/* Search moved to lib/search.js — it has to rank, and it must match text
+   BEFORE consulting the layer switches, which this function did backwards. */
 
 /** Ordered [lat,lng] list for a route, skipping stops that were deleted. */
 export function routeCoords(state, stops) {
