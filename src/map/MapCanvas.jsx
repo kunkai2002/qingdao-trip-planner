@@ -31,16 +31,18 @@ const CLUSTER_MAX_ZOOM = 15
  *
  * Fitting ALL points is wrong for the opening view: 崂山 (120.68), 金沙滩
  * (120.256) and 青岛北站 stretch the box so wide that the city collapses to a
- * speck and half the screen becomes sea. Trimming to the 8th–92nd percentile
- * frames where the points actually are. The "复位" button still fits
- * everything, because that is an explicit request to see the lot.
+ * speck and half the screen becomes sea. An 8th–92nd percentile band was still
+ * too wide — measured zoom 11.5 on a 375px portrait phone, which is most of
+ * Jiaozhou Bay. The interquartile band lands on 老城 + 五四广场, where the trip
+ * actually happens. The "复位" button still fits everything, because that is an
+ * explicit request to see the lot.
  */
 function coreBounds(coords) {
   if (coords.length < 5) return L.latLngBounds(coords)
   const lats = coords.map((c) => c[0]).sort((a, b) => a - b)
   const lngs = coords.map((c) => c[1]).sort((a, b) => a - b)
   const q = (arr, p) => arr[Math.max(0, Math.min(arr.length - 1, Math.round((arr.length - 1) * p)))]
-  return L.latLngBounds([q(lats, 0.08), q(lngs, 0.08)], [q(lats, 0.92), q(lngs, 0.92)])
+  return L.latLngBounds([q(lats, 0.25), q(lngs, 0.25)], [q(lats, 0.75), q(lngs, 0.75)])
 }
 
 /**

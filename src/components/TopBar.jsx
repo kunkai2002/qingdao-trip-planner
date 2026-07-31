@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { Icon } from '../icons/Icon.jsx'
 import { GlassSurface, GlassButton } from './Glass.jsx'
+import { CATS, catColor } from '../data/categories.js'
 import { T, SPRING } from '../lib/motion.js'
 
 const THEME_ICON = { auto: 'layers', light: 'sun', dark: 'moon' }
@@ -18,6 +19,8 @@ export function TopBar({
   onTheme,
   resultCount,
   filtering,
+  results = [],
+  onPick,
   children,
 }) {
   return (
@@ -40,6 +43,7 @@ export function TopBar({
           </span>
         </GlassSurface>
 
+        <div className="searchwrap">
         <GlassSurface
           className="search"
           initial={{ opacity: 0, y: -14 }}
@@ -94,6 +98,65 @@ export function TopBar({
             )}
           </AnimatePresence>
         </GlassSurface>
+
+        {/* Filtering the map alone is not search: if the only match sits off
+            screen the user sees an unchanged map and assumes nothing matched.
+            Every major map app answers a query with a LIST. */}
+        <AnimatePresence>
+          {filtering && (
+            <motion.div
+              className="glass glass--raised results"
+              initial={{ opacity: 0, y: -8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.99, transition: { duration: 0.14 } }}
+              transition={T.card}
+              role="listbox"
+              aria-label="搜索结果"
+            >
+              {results.length === 0 ? (
+                <div className="results__empty">
+                  <Icon name="search" size={18} />
+                  <span>
+                    没有匹配「{query}」的点位
+                    <br />
+                    试试片区名，例如「五四广场」「台东」
+                  </span>
+                </div>
+              ) : (
+                <div className="results__list scroller">
+                  {results.map((p, i) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="option"
+                      aria-selected="false"
+                      className="results__row"
+                      onClick={() => onPick(p.id)}
+                    >
+                      <span
+                        className="results__icon"
+                        style={{ '--row-c': catColor(p.cat) }}
+                      >
+                        <Icon name={CATS[p.cat]?.icon} size={15} />
+                      </span>
+                      <span className="results__body">
+                        <span className="results__name">{p.name}</span>
+                        <span className="results__meta">
+                          {CATS[p.cat]?.name}
+                          {p.area ? ` · ${p.area}` : ''}
+                          {p.prices?.[0] ? ` · ${p.prices[0][1]}` : ''}
+                        </span>
+                      </span>
+                      {p.rating > 0 && <span className="results__rating">{p.rating.toFixed(1)}</span>}
+                      <Icon name="chevronRight" size={14} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+        </div>
 
         <GlassButton
           className="iconbtn"

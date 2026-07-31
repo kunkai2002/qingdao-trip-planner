@@ -26,8 +26,14 @@ export function makePinIcon(
     .filter(Boolean)
     .join(' ')
 
+  /* pin__hit is an invisible 44x44 target. The drawn pin is 24px because a
+     bigger one drowns the map, but 24px is far below the 44pt/48dp minimum
+     every major map app honours, so the tappable area is decoupled from the
+     drawn area. It overflows .pin deliberately; clicks bubble to the Leaflet
+     icon element either way. */
   const html =
     `<div class="${cls}" style="--pin-c:${catColor(point.cat)}">` +
+    `<span class="pin__hit"></span>` +
     `<span class="pin__tip"></span>` +
     `<span class="pin__drop">${iconMarkup(cat.icon, { size: 13, strokeWidth: 2.1 })}</span>` +
     (seq ? `<span class="pin__seq">${seq}</span>` : '') +

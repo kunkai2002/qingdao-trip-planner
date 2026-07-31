@@ -331,6 +331,13 @@ export default function App() {
         onTheme={s.cycleTheme}
         resultCount={visible.length}
         filtering={!!s.query.trim()}
+        results={visible.slice(0, 20)}
+        onPick={(id) => {
+          const p = s.getPoint(id)
+          if (p) mapRef.current?.focus(p.lat, p.lng, desktop ? 404 : 0)
+          s.setQuery('')
+          s.openDetail(id)
+        }}
       >
         <Chips
           counts={counts}
