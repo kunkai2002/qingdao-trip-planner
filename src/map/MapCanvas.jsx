@@ -37,6 +37,13 @@ function labelMarker(marker, point, catName) {
 const CLUSTER_CELL = 52
 const CLUSTER_MAX_ZOOM = 15
 
+/* Label budget — see the labelling block in the marker effect. */
+const LABEL_MIN_ZOOM = 14
+const LABEL_BUDGET = 14
+/* Rough footprint of a drawn name, used for the collision pass. */
+const LABEL_W = 96
+const LABEL_H = 26
+
 /**
  * Bounds of the dense core, ignoring outliers.
  *
@@ -286,6 +293,37 @@ export const MapCanvas = forwardRef(function MapCanvas(
 
     const soloIds = new Set(solo.map((p) => p.id))
 
+    /* Which pins get their name drawn. Every reference map labels important
+       POIs, but 49 names at once is a wall of text — so labels are budgeted:
+       only once zoomed in, only for a capped number, and always for the ones
+       that currently matter (selection, route stops, the pin being moved). */
+    const labelled = new Set()
+    if (zoom >= LABEL_MIN_ZOOM) {
+      /* Claim-a-box collision pass. Without it the dense 老城 cluster draws
+         four or five names straight through each other; every reference map
+         drops the lower-priority label rather than overlapping. Points that
+         currently matter claim their space first. */
+      const taken = []
+      const fits = (pt) =>
+        !taken.some((t) => Math.abs(t.x - pt.x) < LABEL_W && Math.abs(t.y - pt.y) < LABEL_H)
+      const claim = (p, force) => {
+        if (labelled.has(p.id)) return
+        const pt = map.project([p.lat, p.lng], zoom)
+        if (!force && !fits(pt)) return
+        taken.push(pt)
+        labelled.add(p.id)
+      }
+      solo.forEach((p) => mustShow(p.id) && claim(p, true))
+      for (const p of solo) {
+        if (labelled.size >= LABEL_BUDGET) break
+        claim(p, false)
+      }
+    } else {
+      for (const p of solo) {
+        if (selectedId === p.id || movingId === p.id) labelled.add(p.id)
+      }
+    }
+
     /* Fan out pins that land on the same pixel, so none is unreachable. */
     const nudges = new Map()
     const cell = new Map()
@@ -315,6 +353,13 @@ export const MapCanvas = forwardRef(function MapCanvas(
       if (!show) return
       const seq = draftIndex.get(p.id) || routeIndex.get(p.id) || 0
       const nudge = nudges.get(p.id)
+      const label = labelled.has(p.id)
+      /* Real cross-marker ordering. Leaflet derives each icon's z-index from
+         latitude, so a southern pin covers a northern one regardless of state;
+         the selection and route stops have to be lifted explicitly. */
+      m.setZIndexOffset(
+        movingId === p.id ? 1200 : selectedId === p.id ? 1000 : seq > 0 ? 500 : 0,
+      )
       /* Rebuilding the icon re-parses the whole pin subtree including its SVG
          and restarts every CSS animation on it — the selected pin's pulse and
          the armed pin's lift were resetting on every pan and every keystroke.
@@ -326,6 +371,7 @@ export const MapCanvas = forwardRef(function MapCanvas(
         hasRoute && seq === 0 ? 1 : 0,
         movingId === p.id ? 1 : 0,
         nudge ? nudge.join(',') : '',
+        label ? 1 : 0,
       ].join('|')
       if (m._iconKey === key) {
         labelMarker(m, p, CATS[p.cat]?.name)
@@ -340,6 +386,7 @@ export const MapCanvas = forwardRef(function MapCanvas(
           dim: hasRoute && seq === 0,
           moving: movingId === p.id,
           nudge,
+          label,
         }),
       )
       // setIcon rebuilds the element, so the label has to be reapplied

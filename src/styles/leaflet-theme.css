@@ -79,6 +79,12 @@
   border-radius: 50%;
   z-index: 1;
 }
+/* Inverted: a light body carrying a coloured glyph, not a saturated blob.
+   49 fully-saturated pins fight the map's own colours for attention; a light
+   body reads as an annotation layer over the map instead of competing with it,
+   which is how Apple and Tencent draw POIs. Colour is then free to MEAN
+   something: only the selected pin, route stops and the pin being moved get a
+   filled body, so loudness tracks relevance. */
 .pin__drop {
   position: relative;
   z-index: 1;
@@ -89,25 +95,35 @@
   /* sharp corner bottom-left + rotate(-45deg) puts the point straight down */
   border-radius: 50% 50% 50% 5px;
   transform: rotate(-45deg);
+  color: var(--pin-c);
+  background: #fff;
+  box-shadow:
+    inset 0 0 0 1.25px color-mix(in srgb, var(--pin-c) 45%, transparent),
+    0 1px 2px rgba(8, 26, 33, 0.2),
+    0 3px 7px -2px rgba(8, 26, 33, 0.3);
+  transition:
+    transform var(--t-hover) var(--e-out),
+    box-shadow var(--t-hover) var(--e-out),
+    background var(--t-hover) var(--e-out);
+}
+:root[data-theme='dark'] .pin__drop {
+  background: #223038;
+  box-shadow:
+    inset 0 0 0 1.25px color-mix(in srgb, var(--pin-c) 55%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    0 3px 7px -2px rgba(0, 0, 0, 0.55);
+}
+
+/* Filled = this one matters right now. */
+.pin--sel .pin__drop,
+.pin--route .pin__drop,
+.pin--moving .pin__drop {
   color: #fff;
   background: linear-gradient(
     145deg,
     color-mix(in srgb, var(--pin-c) 88%, white),
     color-mix(in srgb, var(--pin-c) 94%, black)
   );
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 0 0 1.5px rgba(255, 255, 255, 0.92),
-    0 2px 5px -1px rgba(8, 26, 33, 0.34);
-  transition:
-    transform var(--t-hover) var(--e-out),
-    box-shadow var(--t-hover) var(--e-out);
-}
-:root[data-theme='dark'] .pin__drop {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.32),
-    0 0 0 1.5px rgba(20, 34, 41, 0.9),
-    0 2px 5px -1px rgba(0, 0, 0, 0.5);
 }
 .pin__drop > svg {
   transform: rotate(45deg);
@@ -279,9 +295,12 @@
 }
 
 /* states */
+/* NOTE: z-index on .pin is dead. Leaflet writes an inline z-index on the
+   parent .leaflet-marker-icon derived from latitude, and .pin only stacks
+   within that parent — so cross-marker ordering has to go through
+   marker.setZIndexOffset(), which MapCanvas does. */
 .pin:hover {
   transform: translateY(-2px);
-  z-index: 600;
 }
 .pin:hover .pin__drop {
   box-shadow:
@@ -295,11 +314,45 @@
    would move the tip and desync it from iconAnchor. */
 .pin--route .pin__drop {
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.55),
-    inset 0 -2px 4px -1px rgba(0, 0, 0, 0.22),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.5),
     0 0 0 2.5px rgba(255, 255, 255, 0.96),
     0 0 0 4.5px color-mix(in srgb, var(--pin-c) 45%, transparent),
     0 4px 10px -2px rgba(8, 26, 33, 0.42);
+}
+
+/* ---- name labels ----
+   Bounded on purpose: labels appear only when zoomed in and only for a capped
+   number of pins, or 49 names turn the map into a wall of text. Drawn with a
+   halo rather than a chip so they sit on the MAP, not on the chrome. */
+.pin__label {
+  position: absolute;
+  left: 50%;
+  top: 31px;
+  transform: translateX(-50%);
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -0.005em;
+  color: #10262f;
+  text-shadow:
+    0 0 3px #fff,
+    0 0 3px #fff,
+    0 1px 2px rgba(255, 255, 255, 0.95);
+  pointer-events: none;
+}
+:root[data-theme='dark'] .pin__label {
+  color: #eef5f7;
+  text-shadow:
+    0 0 3px #0b1418,
+    0 0 3px #0b1418,
+    0 1px 2px rgba(0, 0, 0, 0.9);
+}
+.pin--sel .pin__label {
+  font-weight: 700;
 }
 .pin--dim {
   opacity: 0.42;
@@ -312,9 +365,7 @@
     0 0 0 5.5px color-mix(in srgb, var(--pin-c) 34%, transparent),
     0 5px 12px -2px rgba(8, 26, 33, 0.42);
 }
-.pin--sel {
-  z-index: 620;
-}
+/* selected stacking is handled by setZIndexOffset, not here */
 
 /* a soft pulse when a marker gets focus from the panel */
 .pin--sel::after {

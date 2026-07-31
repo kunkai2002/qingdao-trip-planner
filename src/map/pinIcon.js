@@ -11,9 +11,24 @@ const BOX_W = 28
 const BOX_H = 32
 const ANCHOR = [14, 29]
 
+/* Point names are user-editable, and this markup goes in via innerHTML. */
+const escapeHtml = (s) =>
+  String(s == null ? '' : s).replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+  )
+
 export function makePinIcon(
   point,
-  { seq = 0, selected = false, inRoute = false, dim = false, moving = false, nudge } = {},
+  {
+    seq = 0,
+    selected = false,
+    inRoute = false,
+    dim = false,
+    moving = false,
+    nudge,
+    label = false,
+  } = {},
 ) {
   const cat = CATS[point.cat] || CATS.sight
   const cls = [
@@ -22,6 +37,7 @@ export function makePinIcon(
     selected && 'pin--sel',
     dim && 'pin--dim',
     moving && 'pin--moving',
+    label && 'pin--labelled',
   ]
     .filter(Boolean)
     .join(' ')
@@ -45,6 +61,7 @@ export function makePinIcon(
     `<span class="pin__drop">${iconMarkup(cat.icon, { size: 13, strokeWidth: 2.1 })}</span>` +
     (seq ? `<span class="pin__seq">${seq}</span>` : '') +
     (point.booking ? `<span class="pin__flag" title="需预约"></span>` : '') +
+    (label ? `<span class="pin__label">${escapeHtml(point.name)}</span>` : '') +
     `</div>`
 
   return L.divIcon({
