@@ -620,9 +620,11 @@ a:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  /* Percentages resolve against .app, which is position:fixed inset:0 — so this
-     tracks the visual viewport without depending on vh/dvh support. */
-  max-height: min(84%, 720px);
+  /* A FIXED height, not max-height: the sheet is always this tall and is
+     translated down so only the current detent's worth shows. Percentages
+     resolve against .app (position:fixed inset:0), so this tracks the visual
+     viewport without depending on vh/dvh support. */
+  height: min(88%, 760px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   touch-action: pan-y;
 }
@@ -692,7 +694,8 @@ a:hover {
     top: 16px;
     bottom: auto;
     width: var(--rail-w);
-    /* hug the content, but never taller than the viewport */
+    /* the rail hugs its content; only the sheet uses a fixed height */
+    height: auto;
     max-height: calc(100% - 32px);
     padding-bottom: 0;
   }

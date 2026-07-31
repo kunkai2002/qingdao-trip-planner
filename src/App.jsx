@@ -24,10 +24,17 @@ import { RoutesPanel } from './components/panels/RoutesPanel.jsx'
 import { ChecklistPanel } from './components/panels/ChecklistPanel.jsx'
 import { MenuPanel } from './components/panels/MenuPanel.jsx'
 
+/* `detent` is the resting height of the phone sheet: a POI card sits low so the
+   map stays the subject, a long list opens tall because reading is the point. */
 const PANEL_META = {
-  routes: { eyebrow: '行程', eyebrowIcon: 'compass', title: '攻略路线' },
-  checklist: { eyebrow: '出行准备', eyebrowIcon: 'clipboardCheck', title: '证件 · 备忘清单' },
-  menu: { eyebrow: '设置', eyebrowIcon: 'sliders', title: '菜单与数据' },
+  routes: { eyebrow: '行程', eyebrowIcon: 'compass', title: '攻略路线', detent: 'full' },
+  checklist: {
+    eyebrow: '出行准备',
+    eyebrowIcon: 'clipboardCheck',
+    title: '证件 · 备忘清单',
+    detent: 'full',
+  },
+  menu: { eyebrow: '设置', eyebrowIcon: 'sliders', title: '菜单与数据', detent: 'full' },
 }
 
 export default function App() {
@@ -450,6 +457,7 @@ export default function App() {
             title={meta.title}
             onClose={s.closePanel}
             resetKey={`${s.panel}:${s.selectedId || ''}`}
+            initialDetent={meta.detent || 'half'}
           >
             {/* The glass pane is the shared element across views, so only the
                 contents change. Keyed remount + fade-in, deliberately NOT
