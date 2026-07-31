@@ -5,7 +5,26 @@
 .leaflet-container {
   font-family: var(--font);
   background: var(--amb-0);
+}
+/* The map is keyboard-pannable, so it must show that it has focus. */
+.leaflet-container:focus-visible {
+  outline: 3px solid var(--accent-hi);
+  outline-offset: -3px;
+}
+/* Markers are real tab stops; give them a ring that clears the pin. */
+.leaflet-marker-icon:focus-visible {
   outline: none;
+}
+.leaflet-marker-icon:focus-visible .pin__drop {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 0 2px rgba(255, 255, 255, 0.95),
+    0 0 0 5px var(--accent-hi),
+    0 2px 5px -1px rgba(8, 26, 33, 0.34);
+}
+.leaflet-marker-icon:focus-visible .cluster {
+  outline: 3px solid var(--accent-hi);
+  outline-offset: 2px;
 }
 .leaflet-container a {
   color: var(--accent);

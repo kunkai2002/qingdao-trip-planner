@@ -319,10 +319,15 @@ a:hover {
   color: var(--ink-2);
   transition: background var(--t-micro) var(--e-out);
 }
-.results__row:hover,
+.results__row:hover {
+  background: color-mix(in srgb, var(--ink-3) 16%, transparent);
+}
+/* A background tint alone is not a focus indicator — keyboard users need a
+   ring they can actually find. */
 .results__row:focus-visible {
   background: color-mix(in srgb, var(--ink-3) 16%, transparent);
-  outline: none;
+  outline: 2px solid var(--accent-hi);
+  outline-offset: -2px;
 }
 .results__icon {
   flex: none;
@@ -423,6 +428,15 @@ a:hover {
 }
 .search input::placeholder {
   color: var(--ink-3);
+}
+/* The input itself has no border, so the surrounding glass carries the focus
+   state — otherwise tabbing into search is invisible. */
+.searchwrap:focus-within .search {
+  box-shadow:
+    inset 0 1px 0 var(--g-edge-top),
+    inset 0 0 0 1.5px color-mix(in srgb, var(--accent-hi) 75%, transparent),
+    var(--sh-1),
+    var(--sh-2);
 }
 .search__clear {
   flex: none;

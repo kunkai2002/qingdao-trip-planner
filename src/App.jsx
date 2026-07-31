@@ -139,8 +139,23 @@ export default function App() {
   useEffect(() => {
     const onKey = (e) => {
       if (dialog.state || s.showIntro) return
-      if (e.key === 'Escape' && s.panel) s.closePanel()
-      if (e.key === '/' && e.target === document.body) {
+      const t = e.target
+      const typing =
+        t instanceof HTMLElement &&
+        (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+
+      if (e.key === 'Escape') {
+        // Escape backs out one level at a time rather than nuking everything
+        if (typing && s.query) {
+          s.setQuery('')
+          t.blur()
+        } else if (s.panel) s.closePanel()
+        return
+      }
+      /* `/` only fired when focus was literally on <body>, so it stopped
+         working the moment anything had been clicked. Anywhere outside a text
+         field is the intent. */
+      if (e.key === '/' && !typing) {
         e.preventDefault()
         document.querySelector('.search input')?.focus()
       }

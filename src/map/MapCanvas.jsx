@@ -3,6 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { makePinIcon, makeClusterIcon } from './pinIcon.js'
 import { METRO_LINES } from '../data/metro.js'
+import { CATS } from '../data/categories.js'
 import { wgs2gcj } from '../lib/geo.js'
 
 const TILES = {
@@ -14,6 +15,18 @@ const TILES = {
     url: 'https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
     subdomains: ['1', '2', '3', '4'],
   },
+}
+
+/* Leaflet makes every interactive marker a tab stop, which left 49 unnamed
+   stops in the tab order announcing nothing. Removing them would make the map
+   unusable by keyboard; naming them makes it navigable instead. */
+function labelMarker(marker, point, catName) {
+  const el = marker._icon
+  if (!el) return
+  const bits = [point.name, catName, point.area, point.booking ? '需预约' : null].filter(Boolean)
+  el.setAttribute('role', 'button')
+  el.setAttribute('aria-label', bits.join('，'))
+  el.setAttribute('title', point.name)
 }
 
 /* Clustering: bucket points into a pixel grid at the current zoom. A grid is
@@ -314,7 +327,10 @@ export const MapCanvas = forwardRef(function MapCanvas(
         movingId === p.id ? 1 : 0,
         nudge ? nudge.join(',') : '',
       ].join('|')
-      if (m._iconKey === key) return
+      if (m._iconKey === key) {
+        labelMarker(m, p, CATS[p.cat]?.name)
+        return
+      }
       m._iconKey = key
       m.setIcon(
         makePinIcon(p, {
@@ -326,6 +342,8 @@ export const MapCanvas = forwardRef(function MapCanvas(
           nudge,
         }),
       )
+      // setIcon rebuilds the element, so the label has to be reapplied
+      labelMarker(m, p, CATS[p.cat]?.name)
     })
 
     // cluster bubbles
@@ -338,6 +356,7 @@ export const MapCanvas = forwardRef(function MapCanvas(
       const marker = L.marker([lat, lng], {
         icon: makeClusterIcon(group.length, cats),
         zIndexOffset: -200,
+        alt: `${group.length} 个点位，展开查看`,
       })
       marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e)
@@ -350,6 +369,16 @@ export const MapCanvas = forwardRef(function MapCanvas(
         }
       })
       marker.addTo(clusters)
+      if (marker._icon) {
+        marker._icon.setAttribute('role', 'button')
+        marker._icon.setAttribute(
+          'aria-label',
+          `${group.length} 个点位聚合，${group
+            .slice(0, 3)
+            .map((p) => p.name)
+            .join('、')}${group.length > 3 ? ' 等' : ''}，展开查看`,
+        )
+      }
     })
   }, [points, visibleIds, routeStops, draftStops, selectedId, movingId, clusterTick])
 
