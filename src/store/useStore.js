@@ -59,6 +59,36 @@ const allEnabled = () => CAT_ORDER.reduce((a, k) => ({ ...a, [k]: true }), {})
     at ids that no longer exist. */
 const IDLE_MODES = { movingId: null, addMode: false, diyMode: false, draftStops: [] }
 
+/* An imported file is untrusted input, and whatever it contains gets written
+   straight to localStorage. A point with a missing id or a string latitude
+   renders as nothing but still counts, still gets saved, and can crash the map
+   layer — so validate here rather than discovering it later. */
+function sanePoint(p) {
+  if (!p || typeof p !== 'object') return null
+  const lat = Number(p.lat)
+  const lng = Number(p.lng)
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) return null
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) return null
+  const id = typeof p.id === 'string' && p.id ? p.id : null
+  const name = typeof p.name === 'string' && p.name.trim() ? p.name.trim() : null
+  if (!id || !name) return null
+  return {
+    ...p,
+    id,
+    name,
+    lat,
+    lng,
+    cat: CAT_ORDER.includes(p.cat) ? p.cat : 'sight',
+    rating: Number.isFinite(Number(p.rating)) ? Math.max(0, Math.min(5, Number(p.rating))) : 0,
+    reviews: Number.isFinite(Number(p.reviews)) ? Math.max(0, Number(p.reviews)) : 0,
+    prices: Array.isArray(p.prices)
+      ? p.prices.filter((r) => Array.isArray(r) && r.length === 2).map(([a, b]) => [String(a), String(b)])
+      : [],
+    tags: Array.isArray(p.tags) ? p.tags.filter((t) => typeof t === 'string') : [],
+    booking: !!p.booking,
+  }
+}
+
 function initialTheme() {
   const saved = read(KEYS.theme)
   return saved === 'light' || saved === 'dark' ? saved : 'auto'
@@ -484,7 +514,16 @@ export const useStore = create((set, get) => ({
     try {
       const d = JSON.parse(text)
       if (!Array.isArray(d.points) || !d.points.length) throw new Error('no points')
-      const points = d.points.map(fromLegacyPoint)
+      /* Filter non-objects BEFORE fromLegacyPoint — it dereferences its
+         argument, so a stray null in the array would abort the whole import
+         and lose the records that were perfectly good. */
+      const points = d.points
+        .filter((p) => p && typeof p === 'object')
+        .map(fromLegacyPoint)
+        .map(sanePoint)
+        .filter(Boolean)
+      if (!points.length) throw new Error('no usable points')
+      const dropped = d.points.length - points.length
       const ids = new Set(points.map((p) => p.id))
       set({
         points,
@@ -503,7 +542,13 @@ export const useStore = create((set, get) => ({
         get().persistChecklist()
       }
       get().persist()
-      get().notify(`已导入 ${d.points.length} 个点位`, 'good', 'upload')
+      get().notify(
+        dropped > 0
+          ? `已导入 ${points.length} 个点位，跳过 ${dropped} 条无效记录`
+          : `已导入 ${points.length} 个点位`,
+        dropped > 0 ? 'warn' : 'good',
+        'upload',
+      )
     } catch {
       get().notify('这个文件读不了，请确认是本应用导出的 JSON', 'bad', 'alert')
     }
@@ -525,6 +570,8 @@ export const useStore = create((set, get) => ({
     get().notify('已恢复默认数据', 'info', 'refresh')
   },
 }))
+
+if (import.meta.env.DEV) window.__store = useStore
 
 /* ------------------------------------------------------------------ */
 /* derived selectors (kept out of state so they never go stale)         */

@@ -17,6 +17,7 @@ import { Panel } from './components/Panel.jsx'
 import { Toast } from './components/Toast.jsx'
 import { Onboarding } from './components/Onboarding.jsx'
 import { Dialog, useDialog } from './components/Dialog.jsx'
+import { ErrorBoundary } from './components/ErrorBoundary.jsx'
 import { DetailPanel } from './components/panels/DetailPanel.jsx'
 import { EditPanel } from './components/panels/EditPanel.jsx'
 import { RoutesPanel } from './components/panels/RoutesPanel.jsx'
@@ -353,6 +354,9 @@ export default function App() {
 
   return (
     <div className="app" data-panel={s.panel || undefined}>
+      {/* Scoped so a map failure degrades in place — the panels, the checklist
+          and the export still work without a basemap. */}
+      <ErrorBoundary compact label="地图">
       <MapCanvas
         ref={mapRef}
         points={s.points}
@@ -375,6 +379,7 @@ export default function App() {
           s.notify('底图加载不太顺，检查一下网络连接', 'warn', 'alert')
         }
       />
+      </ErrorBoundary>
 
       <Ambient />
 

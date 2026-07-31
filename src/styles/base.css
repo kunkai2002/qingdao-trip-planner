@@ -1583,6 +1583,83 @@ select.input {
     0 0 0 1.5px color-mix(in srgb, var(--amb-0) 82%, transparent);
 }
 
+/* ------------------------------------------------------------
+   Failure states
+   ------------------------------------------------------------ */
+.failpage {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: var(--amb-0);
+}
+.failpage__card {
+  --radius: var(--r-xl);
+  width: min(440px, 100%);
+  padding: 26px;
+}
+.failpage__detail {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  background: var(--field-bg);
+  box-shadow: inset 0 0 0 1px var(--g-hairline);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 8em;
+  overflow: auto;
+}
+.failpage__btn {
+  flex: 1;
+  min-width: 110px;
+  padding: 11px 14px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-body);
+  font-weight: 650;
+  color: var(--ink-1);
+  background: var(--field-bg);
+  box-shadow: inset 0 0 0 1px var(--field-line);
+}
+.failpage__btn--primary {
+  color: var(--ink-on-accent);
+  background: linear-gradient(150deg, var(--accent-hi), var(--accent));
+  box-shadow: none;
+}
+
+.failbox {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 22px;
+  border-radius: var(--r-md);
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-2);
+  background: rgba(var(--g-base), 0.9);
+  box-shadow: var(--sh-2);
+}
+.failbox strong {
+  color: var(--ink-1);
+}
+.failbox button {
+  padding: 7px 16px;
+  border-radius: var(--r-pill);
+  font-weight: 650;
+  color: var(--ink-on-accent);
+  background: var(--accent);
+}
+
 .sronly {
   position: absolute;
   width: 1px;
