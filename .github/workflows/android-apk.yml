@@ -47,11 +47,18 @@ jobs:
       # guessing what layout it wants.
       - name: Show how Bubblewrap validates the SDK
         run: |
-          set -uo pipefail
+          set +e
           ROOT="$(npm root -g)/@bubblewrap"
-          grep -rn "isn't correct" "$ROOT" --include='*.js' | head -20
+          echo "ROOT=$ROOT"
+          ls "$ROOT"
+          echo '--- where the message lives ---'
+          grep -rn 'provided android' -i "$ROOT" --include='*.js'
+          echo '--- validation helpers ---'
+          grep -rn 'AndroidSdkPathValid\|isValidAndroidSdk\|build-tools\|cmdline-tools\|tools/bin' \
+            "$ROOT" --include='*.js' | grep -v '\.map' | head -60
           echo '--- Config.js ---'
-          cat "$ROOT/core/dist/lib/Config.js" || true
+          find "$ROOT" -name Config.js -not -path '*/node_modules/*' -exec cat {} \;
+          exit 0
 
       # Bubblewrap otherwise prompts to download its own JDK and Android SDK,
       # which hangs a non-interactive runner. Point it at the ones already here.
