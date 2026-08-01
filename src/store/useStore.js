@@ -1,10 +1,10 @@
 import { create } from 'zustand'
 import { SEED_POINTS } from '../data/points.js'
-import { PRESET_ROUTES } from '../data/routes.js'
 import { buildChecklist } from '../data/checklist.js'
 import { CAT_ORDER } from '../data/categories.js'
-import { wgs2gcj, haversine } from '../lib/geo.js'
+import { wgs2gcj } from '../lib/geo.js'
 import { KEYS, read, write, remove, readLegacy } from '../lib/storage.js'
+import { createTripSlice } from './tripSlice.js'
 
 /* ------------------------------------------------------------------ */
 /* helpers                                                             */
@@ -57,7 +57,7 @@ const allEnabled = () => CAT_ORDER.reduce((a, k) => ({ ...a, [k]: true }), {})
 /** Every interaction mode back to rest. Anything that swaps the point set out
     from under the user (import, reset) must apply this, or modes keep pointing
     at ids that no longer exist. */
-const IDLE_MODES = { movingId: null, addMode: false, diyMode: false, draftStops: [] }
+const IDLE_MODES = { movingId: null, addMode: false }
 
 /* An imported file is untrusted input, and whatever it contains gets written
    straight to localStorage. A point with a missing id or a string latitude
@@ -101,6 +101,10 @@ function initialTheme() {
 let toastSeq = 0
 
 export const useStore = create((set, get) => ({
+  /* The itinerary lives in its own slice. Spread first so anything defined
+     below wins a name clash rather than silently shadowing the map store. */
+  ...createTripSlice(set, get),
+
   /* ---- data ---- */
   points: [],
   myRoutes: [],
@@ -114,14 +118,10 @@ export const useStore = create((set, get) => ({
   basemap: read(KEYS.basemap) === 'satellite' ? 'satellite' : 'road',
 
   /* ---- selection / modes ---- */
-  panel: null, // 'detail' | 'edit' | 'routes' | 'checklist' | 'menu'
-  panelFrom: null, // the list we drilled in from, for the back arrow
-  selectedId: null,
+  panel: null, // 'edit' when the place editor is open; otherwise null
+  selectedId: null, // set = the place detail is showing
   editingId: null, // null when creating a new point
   pendingLatLng: null,
-  activeRouteId: null,
-  draftStops: [],
-  diyMode: false,
   addMode: false,
   /* Markers are NOT draggable by default — a drag on the map must pan the map.
      Exactly one point at a time can be armed for moving, from its detail panel. */
@@ -164,15 +164,32 @@ export const useStore = create((set, get) => ({
     const chk = read(KEYS.checklist)
     const checklist = Array.isArray(chk?.groups) ? chk.groups : buildChecklist()
 
+    /* The itinerary is rebuilt from whatever shape was on disk — including the
+       v2 payload that never had one, where the 按天 preset routes are the
+       user's actual plan and become the days. */
+    const { trip, days, savedIds } = get().hydrateTrip(saved || legacy?.data || null)
+    const ids = new Set(points.map((p) => p.id))
+
     set({
       points,
       myRoutes,
       enabled,
       metroOn,
       checklist,
+      trip,
+      // a stop pointing at a deleted point renders as nothing but still counts
+      days: days.map((d) => ({ ...d, items: d.items.filter((it) => ids.has(it.pointId)) })),
+      savedIds: savedIds.filter((id) => ids.has(id)),
+      activeDayId: days[0]?.id || null,
       ready: true,
       showIntro: !read(KEYS.seen),
     })
+
+    /* Write the migration back immediately. Without this, someone who opens the
+       app and changes nothing still has the old payload on disk, so the trip is
+       rebuilt from the presets on every launch — and an export taken in that
+       window would carry the old shape too. */
+    if (!saved?.days?.length) get().persist()
   },
 
   /* Saying 已保存 when the write failed is worse than saying nothing: the trip
@@ -180,8 +197,17 @@ export const useStore = create((set, get) => ({
      mode) means the user believes their edits are safe when they are not.
      Warned once per session, because a full quota fails on every keystroke. */
   persist() {
-    const { points, myRoutes, enabled, metroOn } = get()
-    const ok = write(KEYS.data, { v: 2, points, myRoutes, enabled, metroOn })
+    const { points, myRoutes, enabled, metroOn, trip, days, savedIds } = get()
+    const ok = write(KEYS.data, {
+      v: 3,
+      points,
+      myRoutes,
+      enabled,
+      metroOn,
+      trip,
+      days,
+      savedIds,
+    })
     if (!ok && !get()._storageWarned) {
       set({ _storageWarned: true })
       get().notify('保存失败：浏览器存储已满或处于隐私模式。请立刻「导出备份」', 'bad', 'alert')
@@ -274,40 +300,27 @@ export const useStore = create((set, get) => ({
 
   /* ================= panels ================= */
 
-  openPanel(panel) {
-    set({ panel })
-  },
-  /* Closing the sheet must also end any mode it was hosting. `movingId` used to
-     outlive its own cancel button: the armed marker kept dragging enabled and
-     was force-excluded from clustering, so a thumb landing on it while panning
-     silently moved and persisted the point, and the only control that ends the
-     mode was back inside that point's detail. */
+  /* Closing must also end any mode it was hosting. `movingId` used to outlive
+     its own cancel button: the armed marker kept dragging enabled and was force
+     excluded from clustering, so a thumb landing on it while panning silently
+     moved and persisted the point — and the only control that ends the mode was
+     back inside that point's detail. */
   closePanel() {
     get().endMove(false)
     set({
       panel: null,
-      panelFrom: null,
       selectedId: null,
       editingId: null,
       pendingLatLng: null,
       addMode: false,
     })
   },
+  /* `selectedId` alone means "the detail is open": the workspace column shows
+     it on desktop, the sheet shows it on the map tab. There is no longer a
+     drill-in stack — every list is one nav destination away, so `panelFrom`,
+     `drillTo` and `popPanel` went with the old panel system. */
   openDetail(id) {
-    set({ panel: 'detail', selectedId: id, editingId: null })
-  },
-
-  /* Drilling from a list into one of its items used to replace the list with
-     no way back — you tapped a stop in a route and the route was simply gone.
-     `from` remembers where you came from so the header can offer a back arrow.
-     Deliberately one level: this is a drill-in, not a browser history. */
-  drillTo(id, from) {
-    set({ panel: 'detail', selectedId: id, editingId: null, panelFrom: from })
-  },
-  popPanel() {
-    const from = get().panelFrom
-    if (!from) return get().closePanel()
-    set({ panel: from, panelFrom: null, selectedId: null, editingId: null })
+    set({ selectedId: id, editingId: null })
   },
   openEdit(id) {
     set({ panel: 'edit', editingId: id ?? null, selectedId: id ?? null })
@@ -325,7 +338,7 @@ export const useStore = create((set, get) => ({
 
   armAdd() {
     const on = !get().addMode
-    set({ addMode: on, diyMode: on ? false : get().diyMode })
+    set({ addMode: on })
     get().notify(
       on ? '点击地图上任意位置放置新点位' : '已退出新增模式',
       'info',
@@ -363,7 +376,9 @@ export const useStore = create((set, get) => ({
     set((s) => ({
       points: s.points.filter((x) => x.id !== id),
       myRoutes: s.myRoutes.map((r) => ({ ...r, stops: r.stops.filter((x) => x !== id) })),
-      draftStops: s.draftStops.filter((x) => x !== id),
+      // the itinerary must not keep a stop whose place no longer exists
+      days: s.days.map((d) => ({ ...d, items: d.items.filter((it) => it.pointId !== id) })),
+      savedIds: s.savedIds.filter((x) => x !== id),
       panel: null,
       selectedId: null,
       // otherwise a later endMove() announces a saved position for a dead point
@@ -391,97 +406,6 @@ export const useStore = create((set, get) => ({
       const p = get().getPoint(id)
       get().notify(`「${p?.name || ''}」位置已保存`, 'good', 'checkCircle')
     }
-  },
-
-  /* ================= routes ================= */
-
-  allRoutes() {
-    return [...get().myRoutes, ...PRESET_ROUTES]
-  },
-  getRoute(id) {
-    return get()
-      .allRoutes()
-      .find((r) => r.id === id)
-  },
-
-  showRoute(id) {
-    const rt = get().getRoute(id)
-    if (!rt) return
-    // Showing a route implies its categories should be visible.
-    const enabled = { ...get().enabled }
-    rt.stops.forEach((sid) => {
-      const p = get().getPoint(sid)
-      if (p) enabled[p.cat] = true
-    })
-    set({ activeRouteId: id, enabled, diyMode: false })
-    get().persist()
-    get().notify(`已显示「${rt.name}」`, 'good', 'routePath')
-  },
-
-  clearRoute() {
-    set({ activeRouteId: null })
-  },
-
-  deleteRoute(id) {
-    set((s) => ({
-      myRoutes: s.myRoutes.filter((r) => r.id !== id),
-      activeRouteId: s.activeRouteId === id ? null : s.activeRouteId,
-    }))
-    get().persist()
-    get().notify('已删除这条自建路线', 'bad', 'trash')
-  },
-
-  /* ---- DIY ---- */
-
-  startDiy() {
-    set({ diyMode: true, draftStops: [], addMode: false, activeRouteId: null })
-    get().notify('依次点击地图上的点位，按顺序串成路线', 'info', 'routePath')
-  },
-  exitDiy() {
-    set({ diyMode: false, draftStops: [] })
-  },
-  addToDraft(id) {
-    const s = get()
-    if (!s.diyMode) {
-      set({ diyMode: true, draftStops: [], activeRouteId: null })
-    }
-    if (get().draftStops.includes(id)) {
-      get().notify('这个点已在路线里', 'warn', 'info')
-      return
-    }
-    set((st) => ({ draftStops: [...st.draftStops, id] }))
-    const p = get().getPoint(id)
-    get().notify(`已加入：${p?.name}（第 ${get().draftStops.length} 站）`, 'good', 'plus')
-  },
-  removeFromDraft(index) {
-    set((s) => ({ draftStops: s.draftStops.filter((_, i) => i !== index) }))
-  },
-  reorderDraft(from, to) {
-    set((s) => {
-      const next = [...s.draftStops]
-      const [item] = next.splice(from, 1)
-      next.splice(to, 0, item)
-      return { draftStops: next }
-    })
-  },
-  saveDraft(name) {
-    const stops = get().draftStops
-    if (stops.length < 2) {
-      get().notify('至少选 2 个点位', 'warn', 'alert')
-      return null
-    }
-    const route = {
-      id: 'r' + Date.now().toString(36),
-      group: '我的',
-      name: name || `我的路线 ${get().myRoutes.length + 1}`,
-      icon: 'bookmark',
-      stops: [...stops],
-      color: '#6d5bc7',
-    }
-    set((s) => ({ myRoutes: [...s.myRoutes, route], diyMode: false, draftStops: [] }))
-    get().persist()
-    get().showRoute(route.id)
-    return route.id
   },
 
   /* ================= checklist ================= */
@@ -523,8 +447,18 @@ export const useStore = create((set, get) => ({
   /* ================= data in / out ================= */
 
   exportData() {
-    const { points, myRoutes, checklist } = get()
-    const payload = { v: 2, exported: new Date().toISOString(), points, myRoutes, checklist }
+    const { points, myRoutes, checklist, trip, days, savedIds } = get()
+    const payload = {
+      schemaVersion: 3,
+      v: 3, // older builds look for `v`; keeping it means they can still read this
+      exported: new Date().toISOString(),
+      points,
+      myRoutes,
+      checklist,
+      trip,
+      days,
+      savedIds,
+    }
     const blob = new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
@@ -551,14 +485,27 @@ export const useStore = create((set, get) => ({
       if (!points.length) throw new Error('no usable points')
       const dropped = d.points.length - points.length
       const ids = new Set(points.map((p) => p.id))
+      /* A v1/v2 backup has no itinerary in it. Rebuilding from its routes is
+         the honest reading — the alternative is importing a trip and finding
+         every day empty. */
+      const { trip, days, savedIds } = get().hydrateTrip(d)
       set({
+        trip,
+        days: days.map((day) => ({
+          ...day,
+          items: day.items.filter((it) => ids.has(it.pointId)),
+        })),
+        savedIds: savedIds.filter((id) => ids.has(id)),
+        activeDayId: days[0]?.id || null,
+        _undo: [],
         points,
-        // drop stops pointing at points the incoming backup does not contain,
-        // or they render as nothing yet still count and get saved into routes
+        /* myRoutes is no longer a feature — the itinerary replaced it. It is
+           still carried so that re-importing an old backup, or exporting to a
+           machine still running the old build, keeps those routes intact.
+           Stops pointing at absent points are dropped either way. */
         myRoutes: (d.myRoutes || d.routes || [])
           .map(fromLegacyRoute)
           .map((r) => ({ ...r, stops: r.stops.filter((id) => ids.has(id)) })),
-        activeRouteId: null,
         panel: null,
         selectedId: null,
         ...IDLE_MODES,
@@ -582,12 +529,17 @@ export const useStore = create((set, get) => ({
 
   resetData() {
     remove(KEYS.data)
+    const fresh = get().hydrateTrip(null)
     set({
+      trip: fresh.trip,
+      days: fresh.days,
+      savedIds: [],
+      activeDayId: fresh.days[0]?.id || null,
+      _undo: [],
       points: shiftSeed(),
       myRoutes: [],
       enabled: allEnabled(),
       metroOn: true,
-      activeRouteId: null,
       panel: null,
       selectedId: null,
       ...IDLE_MODES,
@@ -599,24 +551,7 @@ export const useStore = create((set, get) => ({
 
 if (import.meta.env.DEV) window.__store = useStore
 
-/* ------------------------------------------------------------------ */
-/* derived selectors (kept out of state so they never go stale)         */
-/* ------------------------------------------------------------------ */
-
-/* Search moved to lib/search.js — it has to rank, and it must match text
-   BEFORE consulting the layer switches, which this function did backwards. */
-
-/** Ordered [lat,lng] list for a route, skipping stops that were deleted. */
-export function routeCoords(state, stops) {
-  return stops
-    .map((id) => state.points.find((p) => p.id === id))
-    .filter(Boolean)
-    .map((p) => [p.lat, p.lng])
-}
-
-export function routeDistance(state, stops) {
-  const pts = routeCoords(state, stops)
-  let total = 0
-  for (let i = 1; i < pts.length; i++) total += haversine(pts[i - 1], pts[i])
-  return total
-}
+/* Search lives in lib/search.js — it has to rank, and it must match text BEFORE
+   consulting the layer switches, which the original did backwards.
+   Distances and times live in lib/transit.js, because a straight line between
+   two stops is not the answer the itinerary needs. */

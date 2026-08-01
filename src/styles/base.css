@@ -106,8 +106,24 @@ a:hover {
   background: var(--amb-0);
 }
 
-/* Ambient light: soft drifting colour that gives the glass something to
-   refract. Kept faint so map labels stay readable. */
+/* ============================================================
+   Ambient light — soft drifting colour that gives the glass something to
+   refract.
+
+   🔴 THIS WAS THE MAIN REASON A PHONE GOT HOT.
+
+   Four layers roughly 390px across, each `filter: blur(72px)`, under a parent
+   with `mix-blend-mode: soft-light`, every one of them running an *infinite*
+   transform animation. Blur cannot be done by the compositor alone and a blend
+   mode forces a readback of everything underneath, so this re-rasterised four
+   large surfaces and re-composited the whole map beneath them, every frame,
+   forever — with the user doing nothing at all. It also explains the flicker:
+   while map tiles stream in, the blended stack re-composites over and over.
+
+   It is a mouse-desktop flourish. It is now gated on actually having a mouse,
+   and the React component does not even mount without one, so on a phone these
+   layers do not exist rather than existing-but-still.
+   ============================================================ */
 .ambient {
   position: absolute;
   inset: -12%;
@@ -115,7 +131,9 @@ a:hover {
   pointer-events: none;
   opacity: var(--amb-strength);
   mix-blend-mode: soft-light;
-  will-change: transform;
+  /* `will-change` deliberately NOT here: it promotes a full-screen layer for
+     good, including when nothing is animating. It is set below, only in the
+     branch that actually animates. */
 }
 .ambient__blob {
   position: absolute;
@@ -128,7 +146,6 @@ a:hover {
   left: -8vmax;
   top: -10vmax;
   background: var(--amb-1);
-  animation: drift1 34s var(--e-inout) infinite alternate;
 }
 .ambient__blob:nth-child(2) {
   width: 38vmax;
@@ -136,7 +153,6 @@ a:hover {
   right: -6vmax;
   top: 6vmax;
   background: var(--amb-2);
-  animation: drift2 41s var(--e-inout) infinite alternate;
 }
 .ambient__blob:nth-child(3) {
   width: 34vmax;
@@ -144,7 +160,6 @@ a:hover {
   right: 8vmax;
   bottom: -10vmax;
   background: var(--amb-3);
-  animation: drift3 47s var(--e-inout) infinite alternate;
 }
 .ambient__blob:nth-child(4) {
   width: 30vmax;
@@ -152,8 +167,37 @@ a:hover {
   left: 12vmax;
   bottom: -8vmax;
   background: var(--amb-4);
-  animation: drift1 38s var(--e-inout) infinite alternate-reverse;
 }
+
+/* Belt and braces: App only mounts <Ambient/> with a mouse, but the layer is
+   expensive enough that it should also be impossible to get on a touch screen
+   through any other path — and this makes the fix work as a CSS-only patch on
+   a branch whose App.jsx has not been updated. */
+@media (pointer: coarse) {
+  .ambient {
+    display: none;
+  }
+}
+
+/* Motion only where there is a mouse and the reader has not asked for less. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .ambient {
+    will-change: transform;
+  }
+  .ambient__blob:nth-child(1) {
+    animation: drift1 34s var(--e-inout) infinite alternate;
+  }
+  .ambient__blob:nth-child(2) {
+    animation: drift2 41s var(--e-inout) infinite alternate;
+  }
+  .ambient__blob:nth-child(3) {
+    animation: drift3 47s var(--e-inout) infinite alternate;
+  }
+  .ambient__blob:nth-child(4) {
+    animation: drift1 38s var(--e-inout) infinite alternate-reverse;
+  }
+}
+
 @keyframes drift1 {
   to {
     transform: translate3d(7vmax, 4vmax, 0) scale(1.12);

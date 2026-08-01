@@ -6,13 +6,13 @@ import { SPRING, T } from '../lib/motion.js'
 /**
  * ModeStrip — a persistent banner for the modes that change what a tap does.
  *
- * Add-mode, DIY-route-building and move-mode all silently reinterpret taps on
- * the map, and the only sign of any of them was inside a panel that is usually
- * closed while you use them. Arm add-mode, get distracted, come back, and the
- * next tap drops a point you did not want. Every mode now says it is on and
- * offers a way out from wherever you are.
+ * Add-mode and move-mode both silently reinterpret taps on the map, and the
+ * only sign of either was inside a panel that is usually closed while you use
+ * them. Arm add-mode, get distracted, come back, and the next tap drops a point
+ * you did not want. Every mode now says it is on and offers a way out from
+ * wherever you are.
  */
-export function ModeStrip({ addMode, diyMode, draftCount, movingName, onExit }) {
+export function ModeStrip({ addMode, movingName, onExit }) {
   const mode = addMode
     ? {
         key: 'add',
@@ -21,23 +21,15 @@ export function ModeStrip({ addMode, diyMode, draftCount, movingName, onExit }) 
         hint: '长按空白处也可以',
         exit: '取消',
       }
-    : diyMode
+    : movingName
       ? {
-          key: 'diy',
-          icon: 'routePath',
-          text: `自建路线中 · 已选 ${draftCount} 个`,
-          hint: '依次点击地图上的点位',
-          exit: '退出',
+          key: 'move',
+          icon: 'gripDots',
+          text: `正在调整「${movingName}」的位置`,
+          hint: '拖动那个点位，其余地方仍可平移',
+          exit: '完成',
         }
-      : movingName
-        ? {
-            key: 'move',
-            icon: 'gripDots',
-            text: `正在调整「${movingName}」的位置`,
-            hint: '拖动那个点位，其余地方仍可平移',
-            exit: '完成',
-          }
-        : null
+      : null
 
   return (
     <AnimatePresence>

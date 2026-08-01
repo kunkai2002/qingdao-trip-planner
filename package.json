@@ -3,13 +3,17 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "青岛一图流 · 行程规划器 — Apple Liquid Glass 重构版",
+  "description": "青岛一图流 · 行程工作台 — 把每天的地点、路线和时间，放进同一张地图",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/modifiers": "^9.0.0",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "framer-motion": "^11.11.17",
     "leaflet": "^1.9.4",
     "react": "^18.3.1",
