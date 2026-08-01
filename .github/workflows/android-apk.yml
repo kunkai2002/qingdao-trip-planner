@@ -127,9 +127,30 @@ jobs:
           JSON
           cat twa/twa-manifest.json
 
+      # Generating the project downloads the launcher icons from the live site,
+      # so this is the step that fails when the network hiccups. Retry, and show
+      # what the runner can actually reach before giving up.
       - name: Generate the Android project
         working-directory: twa
-        run: bubblewrap update --skipVersionUpgrade < /dev/null
+        env:
+          NODE_OPTIONS: --dns-result-order=ipv4first
+        run: |
+          set -uo pipefail
+          bubblewrap --version || true
+          for i in 1 2 3; do
+            if bubblewrap update --skipVersionUpgrade < /dev/null; then
+              exit 0
+            fi
+            echo "attempt $i failed; probing the icon URLs from this runner"
+            curl -sS -o /dev/null -w 'manifest %{http_code} %{size_download}B\n' \
+              https://kunkai2002.github.io/qingdao-trip-planner/manifest.webmanifest || true
+            curl -sS -o /dev/null -w 'icon-512 %{http_code} %{size_download}B\n' \
+              https://kunkai2002.github.io/qingdao-trip-planner/icon-512.png || true
+            curl -sS -o /dev/null -w 'icon-maskable %{http_code} %{size_download}B\n' \
+              https://kunkai2002.github.io/qingdao-trip-planner/icon-maskable-512.png || true
+            sleep 10
+          done
+          exit 1
 
       - name: Build the APK
         working-directory: twa
