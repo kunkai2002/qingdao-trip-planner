@@ -1,8 +1,8 @@
 name: Build Android APK
 
 # Manual only. The web app is the product; this wraps it as a sideloadable APK
-# for passing around directly (WeChat, a USB cable), which matters where the
-# Play Store is not used.
+# for passing around directly (WeChat, a USB cable, a download link), which
+# matters where the Play Store is not used.
 #
 # Nothing is needed locally: Ubuntu runners already have a JDK and the Android
 # SDK, which is the whole reason this runs in CI rather than on the dev machine.
@@ -13,9 +13,15 @@ on:
         description: 'versionName shown in Android settings'
         required: false
         default: '1.0.0'
+      publish_release:
+        description: 'Also publish a public GitHub Release (gives a direct download link)'
+        type: boolean
+        required: false
+        default: true
 
+# contents: write is only for creating the release that holds the APK.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   apk:
@@ -36,56 +42,65 @@ jobs:
       - name: Install Bubblewrap
         run: npm i -g @bubblewrap/cli@latest
 
+      # Bubblewrap otherwise prompts to download its own JDK and Android SDK,
+      # which hangs a non-interactive runner. Point it at the ones already here.
+      - name: Point Bubblewrap at the runner's JDK and Android SDK
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          echo "JAVA_HOME=$JAVA_HOME"
+          echo "ANDROID_SDK=$SDK"
+          ls "$SDK" || true
+          ls "$SDK/cmdline-tools" || true
+          mkdir -p "$HOME/.bubblewrap"
+          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$SDK" \
+            > "$HOME/.bubblewrap/config.json"
+          cat "$HOME/.bubblewrap/config.json"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+
       # A stable signing key matters: Android refuses to install an update
-      # signed with a different key, so a key generated fresh each run would
-      # force an uninstall for every upgrade. Provide ANDROID_KEYSTORE (base64)
-      # + the three passwords as repository secrets to get a stable one;
-      # without them this falls back to a throwaway key and says so.
+      # signed with a different key, so a key generated fresh each run forces an
+      # uninstall before every upgrade. Provide ANDROID_KEYSTORE (base64) plus
+      # the passwords as repository secrets to get a stable one; without them
+      # this falls back to a throwaway key and says so loudly at the end.
       - name: Restore signing key
         id: key
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE }}
         run: |
-          if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > android.keystore
+          set -euo pipefail
+          if [ -n "${KEYSTORE_B64:-}" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/android.keystore"
             echo "stable=true" >> "$GITHUB_OUTPUT"
           else
-            keytool -genkeypair -v -keystore android.keystore \
+            keytool -genkeypair -v -keystore "$GITHUB_WORKSPACE/android.keystore" \
               -alias qingdao -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass throwaway -keypass throwaway \
               -dname "CN=Qingdao Trip Planner, OU=personal, O=personal, C=CN"
             echo "stable=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Initialise the TWA project
-        env:
-          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'throwaway' }}
-          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD || 'throwaway' }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'qingdao' }}
-          APP_VERSION: ${{ inputs.app_version }}
+      # `bubblewrap init` is interactive and cannot be driven from a script, so
+      # the project is described by hand and `bubblewrap update` generates the
+      # Android project from it. Same result, no prompts.
+      - name: Write the TWA project description
         run: |
-          bubblewrap init \
-            --manifest="https://kunkai2002.github.io/qingdao-trip-planner/manifest.webmanifest" \
-            --directory=twa \
-            --chromeosonly=false \
-            --alphaDependencies=false \
-            --skipPwaValidation=false <<'ANSWERS' || true
-          ANSWERS
-        continue-on-error: true
-
-      # bubblewrap init is interactive; drive it from a config instead.
-      - name: Write bubblewrap config
-        run: |
+          set -euo pipefail
           mkdir -p twa
           cat > twa/twa-manifest.json <<JSON
           {
             "packageId": "io.github.kunkai2002.qingdao",
             "host": "kunkai2002.github.io",
-            "name": "青岛一图流",
+            "name": "青岛一图流 · 行程规划器",
             "launcherName": "青岛一图流",
             "display": "standalone",
+            "orientation": "any",
             "themeColor": "#101b21",
+            "themeColorDark": "#101b21",
             "navigationColor": "#101b21",
+            "navigationColorDark": "#101b21",
+            "navigationDividerColor": "#101b21",
+            "navigationDividerColorDark": "#101b21",
             "backgroundColor": "#e7eef1",
             "startUrl": "/qingdao-trip-planner/",
             "iconUrl": "https://kunkai2002.github.io/qingdao-trip-planner/icon-512.png",
@@ -96,39 +111,98 @@ jobs:
             "generatorApp": "bubblewrap-cli",
             "webManifestUrl": "https://kunkai2002.github.io/qingdao-trip-planner/manifest.webmanifest",
             "fallbackType": "customtabs",
+            "features": {},
+            "splashScreenFadeOutDuration": 300,
             "enableNotifications": false,
+            "enableSiteSettingsShortcut": true,
             "isChromeOSOnly": false,
             "isMetaQuest": false,
             "fullScopeUrl": "https://kunkai2002.github.io/qingdao-trip-planner/",
             "minSdkVersion": 23,
-            "signingKey": { "path": "../android.keystore", "alias": "${{ secrets.ANDROID_KEY_ALIAS || 'qingdao' }}" }
+            "signingKey": {
+              "path": "$GITHUB_WORKSPACE/android.keystore",
+              "alias": "${{ secrets.ANDROID_KEY_ALIAS || 'qingdao' }}"
+            }
           }
           JSON
+          cat twa/twa-manifest.json
+
+      - name: Generate the Android project
+        working-directory: twa
+        run: bubblewrap update --skipVersionUpgrade < /dev/null
 
       - name: Build the APK
         working-directory: twa
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'throwaway' }}
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || 'throwaway' }}
-        run: |
-          yes | bubblewrap update --skipVersionUpgrade || true
-          bubblewrap build --skipPwaValidation
+        run: bubblewrap build --skipPwaValidation < /dev/null
 
-      - name: Report the signing fingerprint
-        working-directory: twa
+      - name: Name the APK and report the signing fingerprint
+        id: out
+        env:
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'throwaway' }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'qingdao' }}
         run: |
-          echo "Add this SHA-256 to assetlinks.json so the URL bar stays hidden:"
-          keytool -list -v -keystore ../android.keystore -alias "${{ secrets.ANDROID_KEY_ALIAS || 'qingdao' }}" \
-            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'throwaway' }}" | grep -A1 "SHA256:" || true
-          if [ "${{ steps.key.outputs.stable }}" != "true" ]; then
-            echo "::warning::Built with a THROWAWAY key. It installs fine, but the next build cannot upgrade over it — you would have to uninstall first. Add the ANDROID_KEYSTORE secret for a stable key."
-          fi
+          set -euo pipefail
+          ls -la twa
+          # A fixed asset name is what makes releases/latest/download/<name> a
+          # permanent link, so the APK is renamed rather than versioned here.
+          cp twa/app-release-signed.apk qingdao-trip-planner.apk
+          SHA=$(keytool -list -v -keystore "$GITHUB_WORKSPACE/android.keystore" \
+                  -alias "$KEY_ALIAS" -storepass "$KS_PASS" \
+                | grep -m1 'SHA256:' | tr -d ' \t' | sed 's/^SHA256://' || true)
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          {
+            echo "### APK built"
+            echo ""
+            echo "- versionName \`${{ inputs.app_version }}\` / versionCode \`${{ github.run_number }}\`"
+            echo "- signing SHA-256: \`$SHA\`"
+            if [ "${{ steps.key.outputs.stable }}" != "true" ]; then
+              echo "- :warning: built with a **throwaway key** — it installs fine, but the"
+              echo "  next build cannot upgrade over it (uninstall first). Add the"
+              echo "  \`ANDROID_KEYSTORE\` secret for a stable key."
+            fi
+            echo "- the URL bar stays visible until \`https://kunkai2002.github.io/.well-known/assetlinks.json\`"
+            echo "  lists this fingerprint — that file lives at the domain root, i.e. in the"
+            echo "  \`kunkai2002.github.io\` repository, not this one."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
           name: qingdao-apk
           path: |
-            twa/app-release-signed.apk
+            qingdao-trip-planner.apk
             twa/app-release-bundle.aab
           if-no-files-found: warn
           retention-days: 30
+
+      # The artifact above needs a GitHub login and a zip download; a release
+      # asset is a plain link that opens straight in a phone browser.
+      - name: Publish the APK as a release
+        if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="apk-v${{ inputs.app_version }}-${{ github.run_number }}"
+          NOTES=$(cat <<'MD'
+          安卓安装包。手机浏览器直接打开下面这个固定链接就能下载最新一版：
+
+          https://github.com/kunkai2002/qingdao-trip-planner/releases/latest/download/qingdao-trip-planner.apk
+
+          装的时候安卓会问「是否允许安装未知来源应用」，允许即可。
+          MD
+          )
+          NOTES="$NOTES
+
+          - versionName \`${{ inputs.app_version }}\` / versionCode \`${{ github.run_number }}\`
+          - 签名 SHA-256: \`${{ steps.out.outputs.sha256 }}\`"
+          if [ "${{ steps.key.outputs.stable }}" != "true" ]; then
+            NOTES="$NOTES
+          - :warning: 本次用的是**一次性签名密钥**，装得上，但下一次构建无法覆盖安装（要先卸载）。"
+          fi
+          gh release create "$TAG" qingdao-trip-planner.apk \
+            --title "安卓安装包 ${{ inputs.app_version }} (build ${{ github.run_number }})" \
+            --notes "$NOTES"
+          echo "Release: $(gh release view "$TAG" --json url -q .url)" >> "$GITHUB_STEP_SUMMARY"
