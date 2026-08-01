@@ -76,12 +76,11 @@ export const MapCanvas = forwardRef(function MapCanvas(
     basemap = 'road',
     routeStops,
     routeColor,
-    draftStops,
     selectedId,
+    hoverId,
     movingId,
     userPos,
     addMode,
-    diyMode,
     onSelect,
     onMovePoint,
     onMoveEnd,
@@ -105,7 +104,7 @@ export const MapCanvas = forwardRef(function MapCanvas(
   // Handlers change every render; keep Leaflet bound to a stable box.
   cbRef.current = { onSelect, onMovePoint, onMoveEnd, onPlacePoint, onTileTrouble }
   const modeRef = useRef({})
-  modeRef.current = { addMode, diyMode }
+  modeRef.current = { addMode }
 
   /* ---------------- create once ---------------- */
   useEffect(() => {
@@ -279,15 +278,19 @@ export const MapCanvas = forwardRef(function MapCanvas(
     if (!map || !clusters) return
 
     const routeIndex = new Map((routeStops || []).map((id, i) => [id, i + 1]))
-    const draftIndex = new Map((draftStops || []).map((id, i) => [id, i + 1]))
-    const hasRoute = routeIndex.size > 0 || draftIndex.size > 0
+    const hasRoute = routeIndex.size > 0
     const zoom = map.getZoom()
 
     /* Points on a shown route, being moved, or currently selected are never
        folded into a bubble — hiding the thing the user just clicked would be
        actively confusing. */
     const mustShow = (id) =>
-      routeIndex.has(id) || draftIndex.has(id) || id === selectedId || id === movingId
+      routeIndex.has(id) ||
+      id === selectedId ||
+      id === movingId ||
+      /* The pointer is on this card in the list right now — folding it into a
+         cluster bubble mid-hover is the one moment it must not disappear. */
+      id === hoverId
 
     const visible = points.filter((p) => visibleIds.has(p.id))
     const solo = []
@@ -372,14 +375,22 @@ export const MapCanvas = forwardRef(function MapCanvas(
       if (show && !map.hasLayer(m)) m.addTo(map)
       if (!show && map.hasLayer(m)) map.removeLayer(m)
       if (!show) return
-      const seq = draftIndex.get(p.id) || routeIndex.get(p.id) || 0
+      const seq = routeIndex.get(p.id) || 0
       const nudge = nudges.get(p.id)
       const label = labelled.has(p.id)
       /* Real cross-marker ordering. Leaflet derives each icon's z-index from
          latitude, so a southern pin covers a northern one regardless of state;
          the selection and route stops have to be lifted explicitly. */
       m.setZIndexOffset(
-        movingId === p.id ? 1200 : selectedId === p.id ? 1000 : seq > 0 ? 500 : 0,
+        movingId === p.id
+          ? 1200
+          : selectedId === p.id
+            ? 1000
+            : hoverId === p.id
+              ? 900
+              : seq > 0
+                ? 500
+                : 0,
       )
       /* Rebuilding the icon re-parses the whole pin subtree including its SVG
          and restarts every CSS animation on it — the selected pin's pulse and
@@ -391,6 +402,8 @@ export const MapCanvas = forwardRef(function MapCanvas(
         seq > 0 ? 1 : 0,
         hasRoute && seq === 0 ? 1 : 0,
         movingId === p.id ? 1 : 0,
+        hoverId === p.id ? 1 : 0,
+        routeColor || '',
         nudge ? nudge.join(',') : '',
         label ? 1 : 0,
       ].join('|')
@@ -406,6 +419,9 @@ export const MapCanvas = forwardRef(function MapCanvas(
           inRoute: seq > 0,
           dim: hasRoute && seq === 0,
           moving: movingId === p.id,
+          hover: hoverId === p.id,
+          // route stops wear the day's colour, everything else its category's
+          color: seq > 0 && routeIndex.has(p.id) ? routeColor : undefined,
           nudge,
           label,
         }),
@@ -448,7 +464,7 @@ export const MapCanvas = forwardRef(function MapCanvas(
         )
       }
     })
-  }, [points, visibleIds, routeStops, draftStops, selectedId, movingId, clusterTick])
+  }, [points, visibleIds, routeStops, routeColor, selectedId, hoverId, movingId, clusterTick])
 
   /* ---------------- exactly one marker may be dragged ---------------- */
   useEffect(() => {
@@ -524,8 +540,8 @@ export const MapCanvas = forwardRef(function MapCanvas(
       if (coords.length < 2) return
       lines[key] = L.polyline(coords, {
         color,
-        weight: flow ? 4 : 9,
-        opacity: flow ? 0.95 : 0.2,
+        weight: flow ? 5 : 9,
+        opacity: flow ? 0.95 : 0.9,
         lineCap: 'round',
         lineJoin: 'round',
         className: flow ? 'route-line route-line--flow' : 'route-line--halo',
@@ -533,27 +549,29 @@ export const MapCanvas = forwardRef(function MapCanvas(
       }).addTo(map)
     }
 
-    // halo underneath, animated dashes on top
-    draw('routeHalo', routeStops, routeColor || '#0c6b78', false)
+    /* A white casing under the line, not a translucent glow of the same hue:
+       over a busy basemap a same-colour halo disappears into the roads it is
+       supposed to separate the route from. This is what every reference map
+       does with its route line. */
+    draw('routeHalo', routeStops, '#ffffff', false)
     draw('route', routeStops, routeColor || '#0c6b78', true)
-    draw('draft', draftStops, '#b0561f', true)
 
     return () => {
-      ;['route', 'routeHalo', 'draft'].forEach((k) => {
+      ;['route', 'routeHalo'].forEach((k) => {
         if (lines[k]) {
           map.removeLayer(lines[k])
           lines[k] = null
         }
       })
     }
-  }, [points, routeStops, routeColor, draftStops])
+  }, [points, routeStops, routeColor])
 
   /* ---------------- cursor affordance ---------------- */
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
-    host.style.cursor = addMode ? 'crosshair' : diyMode ? 'copy' : ''
-  }, [addMode, diyMode])
+    host.style.cursor = addMode ? 'crosshair' : ''
+  }, [addMode])
 
   /* ---------------- imperative API ---------------- */
   /* Both camera helpers take the same inset object describing how much of the
@@ -562,6 +580,14 @@ export const MapCanvas = forwardRef(function MapCanvas(
   useImperativeHandle(ref, () => ({
     zoomIn: () => mapRef.current?.zoomIn(1),
     zoomOut: () => mapRef.current?.zoomOut(1),
+    /* The map is a grid column now, so it resizes whenever the workspace is
+       folded away or the phone switches tabs. Leaflet caches the container size
+       and will otherwise keep rendering into the old rectangle — tiles stop at
+       an invisible edge and every click lands offset from the pin. */
+    invalidate() {
+      mapRef.current?.invalidateSize({ animate: false })
+      setClusterTick((n) => n + 1)
+    },
     /* Used to make searching a non-destructive excursion: the view is
        snapshotted on the first keystroke and put back when the query clears. */
     getView() {

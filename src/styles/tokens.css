@@ -217,3 +217,140 @@
     --sh-3: 0 16px 36px -18px rgba(4, 14, 19, 0.5);
   }
 }
+
+/* ============================================================
+   CONTENT SURFACES
+   ------------------------------------------------------------
+   The tokens above describe glass. Glass is a navigation and control material:
+   it earns its cost when it floats over the map. Reading an itinerary through
+   it does not — a whole column of translucent cards over moving tiles is the
+   fastest way to make text hard to read and every element equally loud.
+
+   So the workspace is opaque. Everything below is the *content* world: warm
+   sand page, white cards, one blue for "this is the thing", coral reserved for
+   things that need answering. Glass keeps the rail, the floating map buttons,
+   the sheets and the modals — and nothing else.
+
+   Text values are checked against their own background, not guessed:
+     light  tx-1 15.0 · tx-2 5.3 · tx-3 4.6 · tx-link 5.4 · coral-text 4.8
+     dark   tx-1 13.4 · tx-2 7.5 · tx-3 5.7 · tx-link 7.1
+   ============================================================ */
+
+:root {
+  /* ---- brand ramps (fills, routes, day colours — not body text) ---- */
+  --sea-950: #102a3a;
+  --sea-800: #134d66;
+  --sea-700: #0a6e8e;
+  --sea-600: #087ea4;
+  --sea-400: #37b6cf;
+  --sea-100: #d7ebf2;
+  --sea-50: #eef7fa;
+  --sand-50: #faf7f0;
+  --sand-100: #f2ebdd;
+  --sand-200: #e6dcc9;
+  --coral-500: #ef6a55;
+  --coral-700: #c1452f;
+  --roof-600: #b64a3e;
+
+  /* ---- radii, per surface class ---- */
+  --rw-panel: 24px;
+  --rw-card: 16px;
+  --rw-field: 14px;
+  --rw-btn: 12px;
+
+  /* ---- motion, content side ---- */
+  --t-w-hover: 160ms;
+  --t-w-state: 200ms;
+  --t-w-card: 240ms;
+  --t-w-panel: 280ms;
+
+  /* ---- layout ----
+     Deliberately NOT `--rail-w`: base.css already scopes that name to `.app`
+     for the old right-hand panel, and the toast and dock offset themselves
+     from it. Reusing it would silently move them. */
+  --nav-w: 72px;
+  --work-w: 440px;
+}
+
+:root,
+:root[data-theme='light'] {
+  --su-page: #faf7f0;
+  --su-raise: #ffffff;
+  --su-sunk: #f2ebdd;
+  --su-hover: rgba(16, 42, 58, 0.045);
+  --su-line: rgba(16, 42, 58, 0.12);
+  --su-line-soft: rgba(16, 42, 58, 0.07);
+  --su-line-strong: rgba(16, 42, 58, 0.22);
+
+  --tx-1: #17232b;
+  --tx-2: #5c6971;
+  --tx-3: #64727b;
+  --tx-link: #0a6e8e;
+  --tx-on-fill: #ffffff;
+
+  --sel-bg: #eef7fa;
+  --sel-line: #37b6cf;
+  --alert-bg: #fdf0ed;
+  --alert-line: #efb3a7;
+  --alert-tx: #c1452f;
+
+  --sh-w-1: 0 1px 2px rgba(16, 42, 58, 0.06);
+  --sh-w-2: 0 4px 14px -6px rgba(16, 42, 58, 0.18);
+  --sh-w-3: 0 18px 44px -20px rgba(16, 42, 58, 0.3);
+}
+
+/* Dark is a real palette, not the light one inverted: inverting sand gives a
+   muddy brown-grey, and inverting the map is only right for the map. */
+:root[data-theme='dark'] {
+  --su-page: #0e1a21;
+  --su-raise: #16242c;
+  --su-sunk: #101c23;
+  --su-hover: rgba(255, 255, 255, 0.055);
+  --su-line: rgba(255, 255, 255, 0.1);
+  --su-line-soft: rgba(255, 255, 255, 0.06);
+  --su-line-strong: rgba(255, 255, 255, 0.2);
+
+  --tx-1: #e9f1f4;
+  --tx-2: #a7bac3;
+  --tx-3: #8b9ea8;
+  --tx-link: #4fc3de;
+  --tx-on-fill: #06222a;
+
+  --sel-bg: #10303c;
+  --sel-line: #37b6cf;
+  --alert-bg: #33201c;
+  --alert-line: #7d4034;
+  --alert-tx: #f0907d;
+
+  --sh-w-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sh-w-2: 0 4px 14px -6px rgba(0, 0, 0, 0.6);
+  --sh-w-3: 0 18px 44px -20px rgba(0, 0, 0, 0.7);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --su-page: #0e1a21;
+    --su-raise: #16242c;
+    --su-sunk: #101c23;
+    --su-hover: rgba(255, 255, 255, 0.055);
+    --su-line: rgba(255, 255, 255, 0.1);
+    --su-line-soft: rgba(255, 255, 255, 0.06);
+    --su-line-strong: rgba(255, 255, 255, 0.2);
+
+    --tx-1: #e9f1f4;
+    --tx-2: #a7bac3;
+    --tx-3: #8b9ea8;
+    --tx-link: #4fc3de;
+    --tx-on-fill: #06222a;
+
+    --sel-bg: #10303c;
+    --sel-line: #37b6cf;
+    --alert-bg: #33201c;
+    --alert-line: #7d4034;
+    --alert-tx: #f0907d;
+
+    --sh-w-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --sh-w-2: 0 4px 14px -6px rgba(0, 0, 0, 0.6);
+    --sh-w-3: 0 18px 44px -20px rgba(0, 0, 0, 0.7);
+  }
+}

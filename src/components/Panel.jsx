@@ -36,6 +36,10 @@ export function Panel({
   initialDetent = 'half',
   onBack,
   backLabel,
+  /* Reading a place detail through frosted glass over moving map tiles is the
+     exact case the glass rule exists to prevent, so the sheet can opt out of
+     the material while keeping the detents, the drag and the camera insets. */
+  solid = false,
 }) {
   const desktop = useIsDesktop()
   const reduced = useReducedMotion()
@@ -125,7 +129,11 @@ export function Panel({
   return (
     <motion.section
       ref={paneRef}
-      className={`glass glass--raised glass--drift panel panel--${detent}`}
+      className={
+        solid
+          ? `panel panel--solid panel--${detent}`
+          : `glass glass--raised glass--drift panel panel--${detent}`
+      }
       style={desktop ? undefined : { touchAction: 'none' }}
       {...(desktop
         ? {

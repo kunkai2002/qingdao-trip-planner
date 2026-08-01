@@ -1,9 +1,10 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useStore, routeCoords, routeDistance } from './store/useStore.js'
-import { runSearch, countByCat } from './lib/search.js'
+import { useStore } from './store/useStore.js'
+import { runSearch } from './lib/search.js'
 import { CATS, CAT_ORDER } from './data/categories.js'
-import { PRESET_ROUTES } from './data/routes.js'
+import { DEFAULT_STAY, clockToMinutes, formatDate } from './data/trip.js'
+import { buildTimeline } from './lib/transit.js'
 import { initGlassPointer } from './lib/glassPointer.js'
 import { useInstallPrompt, requestPersistentStorage } from './lib/install.js'
 import { useIsDesktop } from './lib/useMediaQuery.js'
@@ -11,46 +12,49 @@ import { T } from './lib/motion.js'
 
 import { MapCanvas } from './map/MapCanvas.jsx'
 import { Ambient } from './components/Ambient.jsx'
-import { TopBar } from './components/TopBar.jsx'
-import { Chips } from './components/Chips.jsx'
-import { Dock } from './components/Dock.jsx'
 import { Panel } from './components/Panel.jsx'
 import { Toast } from './components/Toast.jsx'
 import { ModeStrip } from './components/ModeStrip.jsx'
 import { Onboarding } from './components/Onboarding.jsx'
 import { Dialog, useDialog } from './components/Dialog.jsx'
+import { Modal } from './components/Modal.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
-import { DetailPanel } from './components/panels/DetailPanel.jsx'
+import { GlassButton } from './components/Glass.jsx'
+import { Icon } from './icons/Icon.jsx'
 
-/* Only the map and its chrome are needed to render the first screen. The
-   editor, the route builder, the checklist and the settings pane are all
-   behind a deliberate interaction, so they load when first opened instead of
-   sitting in the initial bundle. DetailPanel stays eager — tapping a pin is
-   the first thing most people do, and a spinner there would be silly. */
+import { Rail, TabBar } from './components/work/Rail.jsx'
+import { ItineraryView } from './components/work/ItineraryView.jsx'
+import { PlaceDetailView } from './components/work/PlaceDetailView.jsx'
+
+/* Only 行程 and the map are needed for the first screen — everything else is
+   behind a deliberate tap, so it loads when first opened. */
+const ExploreView = lazy(() =>
+  import('./components/work/ExploreView.jsx').then((m) => ({ default: m.ExploreView })),
+)
+const OverviewView = lazy(() =>
+  import('./components/work/OverviewView.jsx').then((m) => ({ default: m.OverviewView })),
+)
+const SavedView = lazy(() =>
+  import('./components/work/SavedView.jsx').then((m) => ({ default: m.SavedView })),
+)
+const ChecklistView = lazy(() =>
+  import('./components/work/ChecklistView.jsx').then((m) => ({ default: m.ChecklistView })),
+)
+const SettingsView = lazy(() =>
+  import('./components/work/SettingsView.jsx').then((m) => ({ default: m.SettingsView })),
+)
 const EditPanel = lazy(() =>
   import('./components/panels/EditPanel.jsx').then((m) => ({ default: m.EditPanel })),
 )
-const RoutesPanel = lazy(() =>
-  import('./components/panels/RoutesPanel.jsx').then((m) => ({ default: m.RoutesPanel })),
-)
-const ChecklistPanel = lazy(() =>
-  import('./components/panels/ChecklistPanel.jsx').then((m) => ({ default: m.ChecklistPanel })),
-)
-const MenuPanel = lazy(() =>
-  import('./components/panels/MenuPanel.jsx').then((m) => ({ default: m.MenuPanel })),
-)
 
-/* `detent` is the resting height of the phone sheet: a POI card sits low so the
-   map stays the subject, a long list opens tall because reading is the point. */
-const PANEL_META = {
-  routes: { eyebrow: '行程', eyebrowIcon: 'compass', title: '攻略路线', detent: 'full' },
-  checklist: {
-    eyebrow: '出行准备',
-    eyebrowIcon: 'clipboardCheck',
-    title: '证件 · 备忘清单',
-    detent: 'full',
-  },
-  menu: { eyebrow: '设置', eyebrowIcon: 'sliders', title: '菜单与数据', detent: 'full' },
+function ViewSkeleton() {
+  return (
+    <div style={{ padding: 'var(--sp-4)', display: 'grid', gap: 10 }}>
+      <span className="wskel" style={{ height: 22, width: '46%' }} />
+      <span className="wskel" style={{ height: 88 }} />
+      <span className="wskel" style={{ height: 88 }} />
+    </div>
+  )
 }
 
 export default function App() {
@@ -61,19 +65,17 @@ export default function App() {
 
   const install = useInstallPrompt()
   const [storageState, setStorageState] = useState(null)
+  const [railMini, setRailMini] = useState(false)
+  const [showLayers, setShowLayers] = useState(false)
 
   /* ---------------- boot ---------------- */
   useEffect(() => {
     s.init()
-    /* Ask for durable storage up front. The trip only exists in localStorage,
-       and without this grant the browser is free to evict it under storage
-       pressure. Chrome grants it silently for installed or well-used sites. */
     requestPersistentStorage().then(setStorageState)
     return initGlassPointer()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /* theme → documentElement */
   useEffect(() => {
     const root = document.documentElement
     if (s.theme === 'auto') root.removeAttribute('data-theme')
@@ -81,24 +83,28 @@ export default function App() {
   }, [s.theme])
 
   /* ---------------- derived ---------------- */
+
+  /* `map` is a phone tab, not a desktop section — on a wide screen the map is
+     simply always there, so landing on it after a resize would show an empty
+     workspace beside a map that was already visible. */
+  const view = desktop && s.view === 'map' ? 'itinerary' : s.view
+  const mobileMap = !desktop && s.view === 'map'
+
   const search = useMemo(() => runSearch(s), [s.points, s.enabled, s.query])
-  const visible = search.shown
-  const visibleIds = useMemo(() => new Set(visible.map((p) => p.id)), [visible])
-  const searching = !!search.query
+  const visibleIds = useMemo(() => new Set(search.shown.map((p) => p.id)), [search.shown])
 
-  /* Chip counts follow the query, so a filtered map and its own filter row can
-     never disagree — and a closed chip still advertises what turning it back on
-     would restore, which is why this ignores `enabled`. */
-  const counts = useMemo(() => {
-    const base = countByCat(searching ? search.matched : s.points)
-    const c = {}
-    CAT_ORDER.forEach((k) => (c[k] = base[k] || 0))
-    return c
-  }, [s.points, search.matched, searching])
+  const day = s.activeDay()
+  const dayStops = useMemo(() => day?.items.map((it) => it.pointId) || [], [day])
 
-  const activeRoute = useMemo(
-    () => (s.activeRouteId ? s.allRoutes().find((r) => r.id === s.activeRouteId) : null),
-    [s.activeRouteId, s.myRoutes],
+  const timeline = useMemo(
+    () =>
+      day
+        ? buildTimeline(day.items, s.getPoint, {
+            startMinutes: clockToMinutes(day.startTime) ?? 540,
+            defaultStay: DEFAULT_STAY,
+          })
+        : null,
+    [day, s.points],
   )
 
   const pendingChecks = useMemo(
@@ -107,63 +113,58 @@ export default function App() {
   )
 
   const selected = s.selectedId ? s.getPoint(s.selectedId) : null
-  const distanceOf = useCallback((stops) => routeDistance(s, stops || []), [s.points])
+  /* On a phone, a detail opened from the map belongs in the sheet so the pin
+     stays visible; opened from a list, it belongs in that list's column. */
+  const detailInSheet = !desktop && mobileMap && !!selected
+  const detailInWork = !!selected && !detailInSheet
 
-  /* How much of the map the chrome is covering right now. On desktop the panel
-     is a right rail; on phones it is a bottom sheet whose live height Panel
-     publishes as --panel-h. Both camera calls frame into what is left. */
+  /* How much of the map is covered right now, so the camera frames into what is
+     actually visible. The workspace is a real grid column on desktop, so it
+     costs the camera nothing — only the phone sheet does. */
   const mapInset = useCallback(() => {
-    if (!s.panel) return {}
-    if (desktop) return { right: 420 }
-    const h = parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--panel-h'),
-      10,
-    )
+    if (desktop) return {}
+    if (!detailInSheet) return {}
+    const h = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--panel-h'), 10)
     return { bottom: Number.isFinite(h) ? h : 0 }
-  }, [s.panel, desktop])
+  }, [desktop, detailInSheet])
 
-  /* ---------------- map focus follows selection ---------------- */
+  /* ---------------- the map column changes size ----------------
+     Leaflet caches its container size. Folding the workspace away, collapsing
+     the rail or switching phone tabs all resize the map column without a window
+     resize event, and without this the map renders into the old rectangle. */
   useEffect(() => {
-    if (!selected || s.panel !== 'detail') return
+    const id = requestAnimationFrame(() => mapRef.current?.invalidate())
+    return () => cancelAnimationFrame(id)
+  }, [desktop, railMini, mobileMap, s.view])
+
+  /* ---------------- map follows selection ---------------- */
+  useEffect(() => {
+    if (!selected) return
     if (import.meta.env.DEV) window.__mapApi = mapRef.current
     mapRef.current?.focus(selected.lat, selected.lng, mapInset())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.selectedId, s.panel])
+  }, [s.selectedId])
 
-  /* Fly to the user once a fix arrives, zooming in only if we are further out
-     than street level — otherwise a locate would throw away their zoom. */
   useEffect(() => {
-    const map = mapRef.current
-    if (!map || !s.userPos) return
-    map.focus(s.userPos.lat, s.userPos.lng, mapInset())
+    if (!s.userPos) return
+    mapRef.current?.focus(s.userPos.lat, s.userPos.lng, mapInset())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.userPos])
 
-  /* ---------------- the camera follows the query ----------------
-     Matches were often nowhere near the opening viewport (the three 崂山 hits
-     sit 25km east), so the map appeared to simply empty out. Debounced so it
-     does not lurch on every keystroke, and the pre-search view is restored when
-     the query clears, making search a non-destructive excursion. */
-  const savedViewRef = useRef(null)
+  /* Switching day reframes the map onto that day, which is the whole point of
+     the day tabs — otherwise D3 selects and the map keeps showing D1. */
+  const lastDayRef = useRef(null)
   useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-    if (!searching) {
-      if (savedViewRef.current) {
-        map.restoreView(savedViewRef.current)
-        savedViewRef.current = null
-      }
-      return
-    }
-    if (!savedViewRef.current) savedViewRef.current = map.getView()
-    const t = setTimeout(() => {
-      const coords = visible.map((p) => [p.lat, p.lng])
-      if (coords.length > 1) map.fit(coords, mapInset())
-      else if (coords.length === 1) map.focus(coords[0][0], coords[0][1], mapInset())
-    }, 320)
-    return () => clearTimeout(t)
+    if (!day || lastDayRef.current === day.id) return
+    lastDayRef.current = day.id
+    const coords = day.items
+      .map((it) => s.getPoint(it.pointId))
+      .filter(Boolean)
+      .map((p) => [p.lat, p.lng])
+    if (coords.length > 1) mapRef.current?.fit(coords, mapInset())
+    else if (coords.length === 1) mapRef.current?.focus(coords[0][0], coords[0][1], mapInset())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searching, s.query, visible])
+  }, [day?.id])
 
   /* ---------------- keyboard ---------------- */
   useEffect(() => {
@@ -174,32 +175,38 @@ export default function App() {
         t instanceof HTMLElement &&
         (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
 
+      /* Ctrl/Cmd+Z undoes the last reorder, removal or optimisation — the three
+         things that rearrange work the user did by hand. */
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) {
+        e.preventDefault()
+        s.undo()
+        return
+      }
       if (e.key === 'Escape') {
-        // Escape backs out one level at a time rather than nuking everything
         if (typing && s.query) {
           s.setQuery('')
           t.blur()
-        } else if (s.panelFrom) s.popPanel()
-      else if (s.panel) requestClose()
+        } else if (s.panel === 'edit') requestClose()
+        else if (s.selectedId) s.closePanel()
         return
       }
-      /* `/` only fired when focus was literally on <body>, so it stopped
-         working the moment anything had been clicked. Anywhere outside a text
-         field is the intent. */
       if (e.key === '/' && !typing) {
         e.preventDefault()
-        document.querySelector('.search input')?.focus()
+        const box = document.querySelector('.work__head input, .mapsearch input')
+        if (box) box.focus()
+        else {
+          s.setView('explore')
+          setTimeout(() => document.querySelector('.work__head input')?.focus(), 60)
+        }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [s.panel, s.showIntro, dialog.state, s])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.panel, s.selectedId, s.showIntro, s.query, dialog.state])
 
   /* ---------------- handlers ---------------- */
 
-  /* Closing the edit sheet with unsaved changes used to discard them without a
-     word — the form is local state, so Escape, the close button, a drag-dismiss
-     or a tap on the map all threw the work away silently. */
   const editDirtyRef = useRef(false)
   const requestClose = useCallback(async () => {
     if (s.panel === 'edit' && editDirtyRef.current) {
@@ -216,15 +223,16 @@ export default function App() {
     }
     s.closePanel()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.panel, s.closePanel, dialog])
+  }, [s.panel, dialog])
 
+  /* Clicking a pin is the map half of the two-way link: it selects the place,
+     switches to the day that place is on, and asks the list to scroll to it. */
   const handleSelect = (id) => {
-    if (s.diyMode) {
-      s.addToDraft(id)
-      s.openPanel('routes')
-      return
-    }
     s.openDetail(id)
+    if (s.isScheduled(id)) {
+      s.reveal(id)
+      if (!desktop && s.view !== 'map') s.setView('itinerary')
+    }
   }
 
   const handlePlacePoint = (latlng, longPress) => {
@@ -232,81 +240,25 @@ export default function App() {
       s.placeNewPoint(latlng)
       return
     }
-    if (s.panel === 'detail') s.closePanel()
+    if (s.selectedId) s.closePanel()
   }
 
-  const handleFit = () => {
-    const coords = visible.map((p) => [p.lat, p.lng])
-    if (!coords.length) {
-      s.notify('当前没有可见的点位，先打开一个图层', 'warn', 'alert')
-      return
-    }
-    mapRef.current?.fit(coords, mapInset())
-  }
-
-  const handleDeletePoint = async (id) => {
-    const p = s.getPoint(id)
-    const ok = await dialog.confirm({
-      kicker: '删除点位',
-      title: `删除「${p?.name}」？`,
-      body: '这个点位会从地图和所有自建路线里移除。此操作无法撤销，但你可以用「恢复默认数据」拿回原始点位。',
-      tone: 'danger',
-      confirmLabel: '删除',
-    })
-    if (ok) s.deletePoint(id)
-  }
-
-  const handleDeleteRoute = async (id) => {
-    const r = s.getRoute(id)
-    const ok = await dialog.confirm({
-      kicker: '删除路线',
-      title: `删除「${r?.name}」？`,
-      body: '只删除这条自建路线，点位本身不受影响。',
-      tone: 'danger',
-      confirmLabel: '删除',
-    })
-    if (ok) s.deleteRoute(id)
-  }
-
-  const handleSaveDraft = async () => {
-    const name = await dialog.prompt({
-      kicker: '保存路线',
-      title: '给这条路线起个名字',
-      label: '路线名称',
-      defaultValue: `我的路线 ${s.myRoutes.length + 1}`,
-      placeholder: '例如：D6 自由活动',
-      confirmLabel: '保存',
-    })
-    if (name) s.saveDraft(name)
-  }
-
-  const handleAddCheck = async (gi) => {
-    const text = await dialog.prompt({
-      kicker: '备忘清单',
-      title: `往「${s.checklist[gi]?.title}」加一条`,
-      label: '内容',
-      placeholder: '例如：给相机多带一张 SD 卡',
-      confirmLabel: '添加',
-    })
-    if (text) s.addCheckItem(gi, text)
-  }
-
-  const handleResetChecklist = async () => {
-    const ok = await dialog.confirm({
-      kicker: '重置清单',
-      title: '重置整份备忘清单？',
-      body: '所有勾选状态会清空，你自己加的备忘也会被删除。',
-      tone: 'danger',
-      confirmLabel: '重置',
-    })
-    if (ok) s.resetChecklist()
+  const handleFitDay = () => {
+    const coords = (day?.items || [])
+      .map((it) => s.getPoint(it.pointId))
+      .filter(Boolean)
+      .map((p) => [p.lat, p.lng])
+    if (coords.length > 1) return mapRef.current?.fit(coords, mapInset())
+    const all = search.shown.map((p) => [p.lat, p.lng])
+    if (all.length) mapRef.current?.fit(all, mapInset())
+    else s.notify('这一天还没有地点，先去添加一个', 'warn', 'alert')
   }
 
   const handleResetData = async () => {
     const ok = await dialog.confirm({
       kicker: '恢复默认',
       title: '恢复到默认数据？',
-      body: '你编辑过的点位、拖动过的位置和自建路线都会清空，换回内置的 49 个点位。建议先「导出备份」。',
+      body: '你编辑过的地点、拖动过的位置、排好的行程和收藏都会清空，换回内置的 49 个地点和默认五天安排。建议先「导出备份」。',
       tone: 'danger',
       confirmLabel: '恢复默认',
     })
@@ -320,249 +272,263 @@ export default function App() {
     rd.readAsText(file)
   }
 
-  /* ---------------- panel content ---------------- */
+  /* ---------------- what the workspace shows ---------------- */
 
-  let meta = PANEL_META[s.panel]
-  let content = null
-
-  if (s.panel === 'detail' && selected) {
-    meta = {
-      eyebrow: CATS[selected.cat]?.name,
-      eyebrowIcon: CATS[selected.cat]?.icon,
-      title: selected.name,
-    }
-    content = (
-      <DetailPanel
-        point={selected}
-        inDraft={s.draftStops.includes(selected.id)}
-        moving={s.movingId === selected.id}
-        onAddToRoute={(id) => {
-          s.addToDraft(id)
-          s.openPanel('routes')
-        }}
-        onEdit={(id) => s.openEdit(id)}
-        onDelete={handleDeletePoint}
-        onMove={(id) => (s.movingId === id ? s.endMove() : s.startMove(id))}
-      />
-    )
-  } else if (s.panel === 'edit') {
-    const editing = s.editingId ? s.getPoint(s.editingId) : null
-    meta = {
-      eyebrow: editing ? '编辑点位' : '新增点位',
-      eyebrowIcon: editing ? 'pencil' : 'pinPlus',
-      title: editing ? editing.name : '新的点位',
-    }
-    content = (
-      <EditPanel
-        point={editing}
-        isNew={!editing}
-        onNotify={s.notify}
-        onDirtyChange={(d) => (editDirtyRef.current = d)}
-        onSave={(data) => {
-          editDirtyRef.current = false
-          s.savePoint(s.editingId, data)
-        }}
-        onCancel={() => {
-          if (editDirtyRef.current) {
-            requestClose()
-            return
-          }
-          editing ? s.openDetail(editing.id) : s.closePanel()
-        }}
-      />
-    )
-  } else if (s.panel === 'routes') {
-    content = (
-      <RoutesPanel
-        myRoutes={s.myRoutes}
-        presetRoutes={PRESET_ROUTES}
-        activeRouteId={s.activeRouteId}
-        activeRoute={activeRoute}
-        diyMode={s.diyMode}
-        draftStops={s.draftStops}
-        getPoint={s.getPoint}
-        distanceOf={distanceOf}
-        onShowRoute={(id) => {
-          s.showRoute(id)
-          const rt = s.getRoute(id)
-          const coords = routeCoords(useStore.getState(), rt.stops)
-          if (coords.length) mapRef.current?.fit(coords, mapInset())
-        }}
-        onClearRoute={s.clearRoute}
-        onDeleteRoute={handleDeleteRoute}
-        onStartDiy={s.startDiy}
-        onExitDiy={s.exitDiy}
-        onRemoveDraft={s.removeFromDraft}
-        onSaveDraft={handleSaveDraft}
-        onOpenDetail={(id) => s.drillTo(id, 'routes')}
-      />
-    )
-  } else if (s.panel === 'checklist') {
-    content = (
-      <ChecklistPanel
-        groups={s.checklist}
-        onToggle={s.toggleCheck}
-        onAdd={handleAddCheck}
-        onDelete={s.delCheckItem}
-        onReset={handleResetChecklist}
-      />
-    )
-  } else if (s.panel === 'menu') {
-    content = (
-      <MenuPanel
-        points={s.points}
-        myRoutes={s.myRoutes}
-        counts={counts}
-        theme={s.theme}
-        onTheme={s.setTheme}
-        basemap={s.basemap}
-        onBasemap={s.setBasemap}
-        onExport={s.exportData}
-        onImport={handleImport}
-        onReset={handleResetData}
+  let workNode
+  if (detailInWork) {
+    workNode = <PlaceDetailView point={selected} dialog={dialog} />
+  } else if (view === 'itinerary' || view === 'map') {
+    workNode = <ItineraryView dialog={dialog} desktop={desktop} />
+  } else if (view === 'explore') {
+    workNode = <ExploreView />
+  } else if (view === 'overview') {
+    workNode = <OverviewView />
+  } else if (view === 'saved') {
+    workNode = <SavedView />
+  } else if (view === 'checklist') {
+    workNode = <ChecklistView dialog={dialog} />
+  } else if (view === 'settings') {
+    workNode = (
+      <SettingsView
+        dialog={dialog}
+        desktop={desktop}
         install={install}
         storage={storageState}
+        onImport={handleImport}
+        onResetData={handleResetData}
         onInstall={async () => {
           const outcome = await install.install()
           if (outcome === 'accepted') {
-            const p = await requestPersistentStorage()
-            setStorageState(p)
+            setStorageState(await requestPersistentStorage())
             s.notify('已安装到手机，行程数据也更安全了', 'good', 'checkCircle')
           }
-        }}
-        onOpenDetail={(id) => s.drillTo(id, 'menu')}
-        onReplayIntro={() => {
-          s.closePanel()
-          useStore.setState({ showIntro: true })
         }}
       />
     )
   }
 
+  const editing = s.panel === 'edit' ? (s.editingId ? s.getPoint(s.editingId) : null) : undefined
+
   return (
-    <div className="app" data-panel={s.panel || undefined}>
-      {/* Scoped so a map failure degrades in place — the panels, the checklist
-          and the export still work without a basemap. */}
-      <ErrorBoundary compact label="地图">
-      <MapCanvas
-        ref={mapRef}
-        points={s.points}
-        visibleIds={visibleIds}
-        metroOn={s.metroOn}
-        basemap={s.basemap}
-        routeStops={activeRoute?.stops}
-        routeColor={activeRoute?.color}
-        draftStops={s.diyMode ? s.draftStops : undefined}
-        selectedId={s.selectedId}
-        movingId={s.movingId}
-        userPos={s.userPos}
-        addMode={s.addMode}
-        diyMode={s.diyMode}
-        onSelect={handleSelect}
-        onMovePoint={s.movePoint}
-        onMoveEnd={() => s.endMove()}
-        onPlacePoint={handlePlacePoint}
-        onTileTrouble={(bad) =>
-          bad
-            ? s.notify('底图加载不上，检查网络。点位和路线仍可正常使用', 'warn', 'alert')
-            : s.notify('底图已恢复', 'good', 'checkCircle')
-        }
-      />
-      </ErrorBoundary>
-
-      <Ambient />
-
-      <TopBar
-        query={s.query}
-        onQuery={s.setQuery}
-        onMenu={() => s.openPanel('menu')}
-        theme={s.theme}
-        onTheme={s.cycleTheme}
-        resultCount={visible.length}
-        filtering={searching}
-        results={search.ranked.filter((p) => s.enabled[p.cat]).slice(0, 20)}
-        hiddenByLayer={search.hiddenByLayer}
-        onEnableHidden={() => s.enableCats([...new Set(search.hiddenByLayer.map((p) => p.cat))])}
-        onPick={(id) => {
-          const p = s.getPoint(id)
-          if (p) mapRef.current?.focus(p.lat, p.lng, desktop ? { right: 420 } : {})
-          s.setQuery('')
-          s.openDetail(id)
-        }}
-      >
-        <Chips
-          counts={counts}
-          enabled={s.enabled}
-          metroOn={s.metroOn}
-          onToggleCat={s.toggleCat}
-          onToggleMetro={s.toggleMetro}
-          onRoutes={() => s.openPanel('routes')}
-          routeActive={!!s.activeRouteId || s.diyMode}
+    <div
+      className="shell"
+      data-rail={railMini ? 'mini' : undefined}
+      data-mobile={desktop ? undefined : mobileMap ? 'map' : 'page'}
+    >
+      {desktop && (
+        <Rail
+          view={view}
+          onView={s.setView}
+          pendingChecks={pendingChecks}
+          mini={railMini}
+          onToggleMini={() => setRailMini((v) => !v)}
+          theme={s.theme}
+          onTheme={s.cycleTheme}
         />
-      </TopBar>
+      )}
 
-      <Dock
-        onFit={handleFit}
-        onLocate={s.locate}
-        locating={s.locating}
-        located={!!s.userPos}
-        onChecklist={() => s.openPanel('checklist')}
-        onRoutes={() => s.openPanel('routes')}
-        onAdd={s.armAdd}
-        addArmed={s.addMode}
-        diyActive={s.diyMode}
-        pendingChecks={pendingChecks}
-        draftCount={s.draftStops.length}
-      />
-
-      <AnimatePresence>
-        {s.panel && meta && (
-          <Panel
-            key="panel"
-            eyebrow={meta.eyebrow}
-            eyebrowIcon={meta.eyebrowIcon}
-            title={meta.title}
-            onClose={requestClose}
-            resetKey={`${s.panel}:${s.selectedId || ''}`}
-            initialDetent={meta.detent || 'half'}
-            onBack={s.panelFrom ? s.popPanel : undefined}
-            backLabel={s.panelFrom ? PANEL_META[s.panelFrom]?.title : undefined}
-          >
-            {/* The glass pane is the shared element across views, so only the
-                contents change. Keyed remount + fade-in, deliberately NOT
-                AnimatePresence mode="wait": gating the swap on an exit
-                animation would delay every panel switch, and would strand the
-                old view on screen if the animation never ran. */}
+      <div className="work">
+        <ErrorBoundary compact label="工作区">
+          <Suspense fallback={<ViewSkeleton />}>
             <motion.div
-              key={`${s.panel}:${s.selectedId || ''}:${s.editingId || ''}`}
-              initial={{ opacity: 0, y: 6 }}
+              key={detailInWork ? `detail:${s.selectedId}` : view}
+              initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
               transition={T.card}
+              style={{ display: 'contents' }}
             >
-              <Suspense
-                fallback={
-                  <div className="panelload">
-                    <span className="skeleton" style={{ height: 18, width: '55%' }} />
-                    <span className="skeleton" style={{ height: 14, width: '80%' }} />
-                    <span className="skeleton" style={{ height: 14, width: '70%' }} />
-                  </div>
-                }
-              >
-                {content}
-              </Suspense>
+              {workNode}
             </motion.div>
+          </Suspense>
+        </ErrorBoundary>
+      </div>
+
+      <div className="shell__map">
+        <ErrorBoundary compact label="地图">
+          <MapCanvas
+            ref={mapRef}
+            points={s.points}
+            visibleIds={visibleIds}
+            metroOn={s.metroOn}
+            basemap={s.basemap}
+            routeStops={dayStops}
+            routeColor={day?.color}
+            selectedId={s.selectedId}
+            hoverId={s.hoverPointId}
+            movingId={s.movingId}
+            userPos={s.userPos}
+            addMode={s.addMode}
+            onSelect={handleSelect}
+            onMovePoint={s.movePoint}
+            onMoveEnd={() => s.endMove()}
+            onPlacePoint={handlePlacePoint}
+            onTileTrouble={(bad) =>
+              bad
+                ? s.notify('底图加载不上，检查网络。地点和行程仍可正常使用', 'warn', 'alert')
+                : s.notify('底图已恢复', 'good', 'checkCircle')
+            }
+          />
+        </ErrorBoundary>
+
+        <Ambient />
+
+        {/* Three controls, all about the map itself. Nothing that belongs to
+            the itinerary lives out here any more. */}
+        <div className="mapctl">
+          <GlassButton onClick={s.locate} title="我的位置" aria-label="定位到我的位置">
+            <Icon name={s.locating ? 'spinner' : 'target'} size={18} className={s.locating ? 'spin' : ''} />
+          </GlassButton>
+          <GlassButton onClick={handleFitDay} title="适配当天路线" aria-label="适配当天路线">
+            <Icon name="routePath" size={18} />
+          </GlassButton>
+          <GlassButton
+            onClick={() => setShowLayers((v) => !v)}
+            title="图层"
+            aria-label="图层"
+            aria-expanded={showLayers}
+          >
+            <Icon name="layers" size={18} />
+          </GlassButton>
+          <AnimatePresence>
+            {showLayers && (
+              <motion.div
+                className="glass maplayers"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 8 }}
+                transition={T.card}
+              >
+                {CAT_ORDER.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className="maplayers__row"
+                    aria-pressed={!!s.enabled[k]}
+                    onClick={() => s.toggleCat(k)}
+                  >
+                    <Icon name={CATS[k].icon} size={15} />
+                    {CATS[k].name}
+                    <Icon name={s.enabled[k] ? 'eye' : 'eyeOff'} size={14} />
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="maplayers__row"
+                  aria-pressed={s.metroOn}
+                  onClick={s.toggleMetro}
+                >
+                  <Icon name="train" size={15} />
+                  地铁线
+                  <Icon name={s.metroOn ? 'eye' : 'eyeOff'} size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="maplayers__row"
+                  onClick={() => s.setBasemap(s.basemap === 'road' ? 'satellite' : 'road')}
+                >
+                  <Icon name="layers" size={15} />
+                  {s.basemap === 'road' ? '切到卫星图' : '切到街道图'}
+                  <Icon name="chevronRight" size={14} />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Which colour is which day. Without it the numbered pins are just
+            coloured dots. */}
+        {s.days.length > 1 && (
+          <div className="glass maplegend">
+            {s.days.map((d, i) => (
+              <button
+                key={d.id}
+                type="button"
+                className="maplegend__i"
+                data-off={d.id === day?.id ? undefined : '1'}
+                style={{ '--day-c': d.color, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', cursor: 'pointer' }}
+                onClick={() => {
+                  s.setActiveDay(d.id)
+                  if (!desktop) s.setView('map')
+                }}
+              >
+                <i className="maplegend__sw" />
+                D{i + 1}
+                <span style={{ opacity: 0.7 }}>{formatDate(d.date).md}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {!desktop && <TabBar view={s.view} onView={s.setView} pendingChecks={pendingChecks} />}
+
+      {/* One primary action on phones, anchored above the tab bar. */}
+      {!desktop && !mobileMap && (view === 'itinerary' || view === 'explore') && !detailInWork && (
+        <div className="fabbar">
+          {view === 'itinerary' ? (
+            <button type="button" className="wbtn wbtn--primary" onClick={() => s.setView('explore')}>
+              <Icon name="plus" size={17} />
+              添加地点
+            </button>
+          ) : (
+            <button type="button" className="wbtn wbtn--primary" onClick={() => s.setView('itinerary')}>
+              <Icon name="calendar" size={17} />
+              回到行程
+              {timeline ? `（${day?.items.length} 个）` : ''}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Phone: the detail opened from the map, as a sheet over it. */}
+      <AnimatePresence>
+        {detailInSheet && (
+          <Panel
+            key="sheet"
+            solid
+            eyebrow={CATS[selected.cat]?.name}
+            eyebrowIcon={CATS[selected.cat]?.icon}
+            title={selected.name}
+            onClose={s.closePanel}
+            resetKey={selected.id}
+            initialDetent="half"
+          >
+            <PlaceDetailView point={selected} dialog={dialog} embedded />
           </Panel>
         )}
       </AnimatePresence>
 
+      {/* Editing a place is a focused, temporary job — a modal, not a column. */}
+      <Modal open={s.panel === 'edit'} onClose={requestClose} labelledBy="editttl">
+        <h2 id="editttl" className="modal__title">
+          {editing ? `编辑「${editing.name}」` : '新增地点'}
+        </h2>
+        <Suspense fallback={<ViewSkeleton />}>
+          {s.panel === 'edit' && (
+            <EditPanel
+              point={editing}
+              isNew={!editing}
+              onNotify={s.notify}
+              onDirtyChange={(d) => (editDirtyRef.current = d)}
+              onSave={(data) => {
+                editDirtyRef.current = false
+                s.savePoint(s.editingId, data)
+              }}
+              onCancel={() => {
+                if (editDirtyRef.current) requestClose()
+                else if (editing) s.openDetail(editing.id)
+                else s.closePanel()
+              }}
+            />
+          )}
+        </Suspense>
+      </Modal>
+
       <ModeStrip
         addMode={s.addMode}
-        diyMode={s.diyMode}
-        draftCount={s.draftStops.length}
         movingName={s.movingId ? s.getPoint(s.movingId)?.name : null}
         onExit={() => {
           if (s.addMode) s.armAdd()
-          else if (s.diyMode) s.exitDiy()
           else if (s.movingId) s.endMove()
         }}
       />

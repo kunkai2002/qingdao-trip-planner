@@ -26,6 +26,11 @@ export function makePinIcon(
     inRoute = false,
     dim = false,
     moving = false,
+    hover = false,
+    /* When a point is on the day being viewed it wears that day's colour rather
+       than its category's. Category tells you what a place is; on the map, what
+       you need first is which day it belongs to. */
+    color,
     nudge,
     label = false,
   } = {},
@@ -37,6 +42,7 @@ export function makePinIcon(
     selected && 'pin--sel',
     dim && 'pin--dim',
     moving && 'pin--moving',
+    hover && 'pin--hover',
     label && 'pin--labelled',
   ]
     .filter(Boolean)
@@ -53,7 +59,7 @@ export function makePinIcon(
      and a leader dot marks the true anchor. */
   const shift = nudge ? `translate(${nudge[0]}px,${nudge[1]}px)` : ''
   const html =
-    `<div class="${cls}${nudge ? ' pin--nudged' : ''}" style="--pin-c:${catColor(point.cat)}${
+    `<div class="${cls}${nudge ? ' pin--nudged' : ''}" style="--pin-c:${color || catColor(point.cat)}${
       shift ? `;transform:${shift}` : ''
     }">` +
     `<span class="pin__hit"></span>` +
@@ -95,6 +101,9 @@ export function makeClusterIcon(count, cats) {
     className: 'cluster-wrap',
     html:
       `<div class="cluster" style="width:${size}px;height:${size}px;${ring}">` +
+      /* Same trick as the pins: the smallest bubble is drawn at 34px because a
+         44px one dominates the map, so the tappable disc is decoupled from it. */
+      `<span class="cluster__hit"></span>` +
       `<span class="cluster__inner">${count}</span></div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],

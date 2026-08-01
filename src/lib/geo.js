@@ -44,7 +44,13 @@ export function wgs2gcj(lat, lng) {
   return [lat + dLat, lng + dLng]
 }
 
-/** Great-circle distance in km between [lat,lng] pairs. */
+/**
+ * Great-circle distance in **kilometres** between [lat,lng] pairs.
+ *
+ * The unit is the trap here: the itinerary, the transit estimates and
+ * `formatDistance` all speak metres, and reading this as metres silently turns
+ * a 7 km day into "7 m" with no error anywhere. Prefer `haversineM` in new code.
+ */
 export function haversine(a, b) {
   const R = 6371
   const dLat = ((b[0] - a[0]) * Math.PI) / 180
@@ -57,20 +63,12 @@ export function haversine(a, b) {
   return 2 * R * Math.asin(Math.sqrt(s))
 }
 
-/** Total straight-line length of an ordered point list. */
-export function pathLength(points) {
-  let total = 0
-  for (let i = 1; i < points.length; i++) {
-    total += haversine(points[i - 1], points[i])
-  }
-  return total
+/** Great-circle distance in metres — the unit everything downstream uses. */
+export function haversineM(a, b) {
+  return haversine(a, b) * 1000
 }
 
-/**
- * Rough walking time in minutes for a straight-line distance.
- * Straight lines under-report real streets, so apply a 1.32 detour factor
- * on top of a 4.6 km/h pace.
- */
-export function walkMinutes(km) {
-  return Math.round(((km * 1.32) / 4.6) * 60)
-}
+/* `pathLength` and `walkMinutes` used to live here. Both moved into
+   lib/transit.js, which needs the mode, the fixed cost of getting to a platform
+   or a parking space, and the ability to be swapped for a real routing service.
+   Keeping duplicates here would guarantee the two drift apart. */

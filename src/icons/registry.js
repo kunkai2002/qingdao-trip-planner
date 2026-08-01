@@ -36,6 +36,59 @@ export const ICONS = {
   chevronDown: [['path', { d: 'M5.6 9.6 12 16l6.4-6.4' }]],
   chevronUp: [['path', { d: 'M5.6 14.4 12 8l6.4 6.4' }]],
   arrowRight: [['path', { d: 'M4.4 12h14.6' }], ['path', { d: 'M13.2 6.2 19 12l-5.8 5.8' }]],
+  undo: [
+    ['path', { d: 'M4.6 9.4h9.2a5.4 5.4 0 0 1 0 10.8H8.2' }],
+    ['path', { d: 'M8.2 5 4.4 9.4l3.8 4.4' }],
+  ],
+
+  /* ---------- itinerary ---------- */
+  /* Travel modes. They sit inline in a line of text, so each one has to read at
+     14px — hence very few strokes and no interior detail. */
+  walk: [
+    ['circle', { cx: 13.2, cy: 4.9, r: 1.9 }],
+    ['path', { d: 'M11.4 20.6 13 15l-2.4-2.3.8-4.2 3.4 1.5 1.1 2.5 2.5.9' }],
+    ['path', { d: 'M11.4 8.5 8.2 10l-1.6 3.4' }],
+    ['path', { d: 'M13 15l2.1 5.6' }],
+  ],
+  car: [
+    ['path', { d: 'M4.2 16.4v-3l1.9-4.3A2 2 0 0 1 7.9 7.8h8.2a2 2 0 0 1 1.8 1.2l1.9 4.4v3' }],
+    ['path', { d: 'M4.2 13.4h15.6' }],
+    ['circle', { cx: 7.6, cy: 16.4, r: 1.5 }],
+    ['circle', { cx: 16.4, cy: 16.4, r: 1.5 }],
+  ],
+  wand: [
+    ['path', { d: 'M5 19 15.4 8.6' }],
+    ['path', { d: 'M13.4 6.6 17.4 10.6' }],
+    ['path', { d: 'M18.2 4.2v3.2M16.6 5.8h3.2' }],
+    ['path', { d: 'M6.6 4.4v2.4M5.4 5.6h2.4' }],
+  ],
+  lock: [
+    ['rect', { x: 5.2, y: 10.6, width: 13.6, height: 9.2, rx: 2.4 }],
+    ['path', { d: 'M8.4 10.6V8a3.6 3.6 0 0 1 7.2 0v2.6' }],
+  ],
+  lockOpen: [
+    ['rect', { x: 5.2, y: 10.6, width: 13.6, height: 9.2, rx: 2.4 }],
+    ['path', { d: 'M8.4 10.6V8a3.6 3.6 0 0 1 7-1.2' }],
+  ],
+  calendarPlus: [
+    ['rect', { x: 3.8, y: 5.4, width: 16.4, height: 14.4, rx: 2.6 }],
+    ['path', { d: 'M3.8 9.8h16.4M8.2 3.4v3.4M15.8 3.4v3.4' }],
+    ['path', { d: 'M12 12.6v4.6M9.7 14.9h4.6' }],
+  ],
+  home: [
+    ['path', { d: 'M4.4 10.6 12 4.4l7.6 6.2v8a1.6 1.6 0 0 1-1.6 1.6H6a1.6 1.6 0 0 1-1.6-1.6Z' }],
+    ['path', { d: 'M9.6 20.2v-6h4.8v6' }],
+  ],
+  hourglass: [
+    ['path', { d: 'M7 4.2h10M7 19.8h10' }],
+    ['path', { d: 'M8 4.2c0 4 4 5.6 4 7.8s-4 3.8-4 7.8' }],
+    ['path', { d: 'M16 4.2c0 4-4 5.6-4 7.8s4 3.8 4 7.8' }],
+  ],
+  coins: [
+    ['ellipse', { cx: 9.4, cy: 7.4, rx: 5.2, ry: 2.6 }],
+    ['path', { d: 'M4.2 7.4v4.2c0 1.4 2.3 2.6 5.2 2.6s5.2-1.2 5.2-2.6V7.4' }],
+    ['path', { d: 'M14.6 10.5c2.7.2 4.6 1.3 4.6 2.5v4.2c0 1.4-2.3 2.6-5.2 2.6-2.4 0-4.4-.8-5-1.9' }],
+  ],
   arrowUpRight: [['path', { d: 'M7 17 17 7' }], ['path', { d: 'M9.4 7H17v7.6' }]],
   arrowsHorizontal: [
     ['path', { d: 'M3.6 12h16.8' }],

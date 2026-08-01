@@ -4,36 +4,25 @@ import { Modal } from './Modal.jsx'
 import { GlassButton } from './Glass.jsx'
 import { T } from '../lib/motion.js'
 
+/* Three lines, not six.
+   The old version explained 图层 / 点位 / 编辑 / 长按新增 / 路线 / 备份 — six
+   things, which is what you write when the interface cannot explain itself.
+   These three are the loop the whole app is built around; everything else is
+   discoverable from where it lives. */
 const TIPS = [
   {
-    icon: 'layers',
+    icon: 'calendar',
     body: (
       <>
-        顶部<b>彩色胶囊</b>是图层开关，点一下显示或隐藏某一类点位
+        左边是<b>某一天的行程</b>，右边是地图。切换 D1–D5，地图只亮那天的路线
       </>
     ),
   },
   {
-    icon: 'mapPin',
+    icon: 'gripDots',
     body: (
       <>
-        点<b>地图上的点位</b>看详情：评分、价位、营业时间、注意事项
-      </>
-    ),
-  },
-  {
-    icon: 'pencil',
-    body: (
-      <>
-        详情里可<b>编辑或删除</b>；点「<b>调整位置</b>」后才能拖动那一个点位
-      </>
-    ),
-  },
-  {
-    icon: 'pinPlus',
-    body: (
-      <>
-        <b>长按地图空白处</b>就能在那里新增一个点位
+        <b>拖动卡片</b>换顺序，路线、时间和路程立刻跟着重算
       </>
     ),
   },
@@ -41,15 +30,7 @@ const TIPS = [
     icon: 'compass',
     body: (
       <>
-        右下 <b>罗盘</b>看攻略路线，也能自己串一条 DIY 路线
-      </>
-    ),
-  },
-  {
-    icon: 'download',
-    body: (
-      <>
-        菜单里可<b>导出 / 导入备份</b>，换手机也不丢数据
+        去<b>探索</b>挑地点，加进任意一天。收藏是「想去但还没定哪天」的暂存区
       </>
     ),
   },
@@ -63,7 +44,7 @@ export function Onboarding({ open, onClose }) {
         青岛一图流
       </h1>
       <p className="modal__sub">
-        一张地图放下全部行程：景点、住宿、餐厅、娱乐和地铁。所有改动只存在你自己的浏览器里。
+        把每天的地点、路线和时间，放进同一张地图。所有改动只存在你自己的浏览器里，不会上传。
       </p>
 
       <ul className="tips">
