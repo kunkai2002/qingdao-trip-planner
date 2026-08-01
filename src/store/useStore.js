@@ -119,8 +119,7 @@ export const useStore = create((set, get) => ({
 
   /* ---- selection / modes ---- */
   panel: null, // 'edit' when the place editor is open; otherwise null
-  panelFrom: null, // the list we drilled in from, for the back arrow
-  selectedId: null,
+  selectedId: null, // set = the place detail is showing
   editingId: null, // null when creating a new point
   pendingLatLng: null,
   addMode: false,
@@ -301,40 +300,27 @@ export const useStore = create((set, get) => ({
 
   /* ================= panels ================= */
 
-  openPanel(panel) {
-    set({ panel })
-  },
-  /* Closing the sheet must also end any mode it was hosting. `movingId` used to
-     outlive its own cancel button: the armed marker kept dragging enabled and
-     was force-excluded from clustering, so a thumb landing on it while panning
-     silently moved and persisted the point, and the only control that ends the
-     mode was back inside that point's detail. */
+  /* Closing must also end any mode it was hosting. `movingId` used to outlive
+     its own cancel button: the armed marker kept dragging enabled and was force
+     excluded from clustering, so a thumb landing on it while panning silently
+     moved and persisted the point — and the only control that ends the mode was
+     back inside that point's detail. */
   closePanel() {
     get().endMove(false)
     set({
       panel: null,
-      panelFrom: null,
       selectedId: null,
       editingId: null,
       pendingLatLng: null,
       addMode: false,
     })
   },
+  /* `selectedId` alone means "the detail is open": the workspace column shows
+     it on desktop, the sheet shows it on the map tab. There is no longer a
+     drill-in stack — every list is one nav destination away, so `panelFrom`,
+     `drillTo` and `popPanel` went with the old panel system. */
   openDetail(id) {
-    set({ panel: 'detail', selectedId: id, editingId: null })
-  },
-
-  /* Drilling from a list into one of its items used to replace the list with
-     no way back — you tapped a stop in a route and the route was simply gone.
-     `from` remembers where you came from so the header can offer a back arrow.
-     Deliberately one level: this is a drill-in, not a browser history. */
-  drillTo(id, from) {
-    set({ panel: 'detail', selectedId: id, editingId: null, panelFrom: from })
-  },
-  popPanel() {
-    const from = get().panelFrom
-    if (!from) return get().closePanel()
-    set({ panel: from, panelFrom: null, selectedId: null, editingId: null })
+    set({ selectedId: id, editingId: null })
   },
   openEdit(id) {
     set({ panel: 'edit', editingId: id ?? null, selectedId: id ?? null })

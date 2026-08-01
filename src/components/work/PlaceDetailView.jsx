@@ -102,9 +102,11 @@ export function PlaceDetailView({ point, dialog, embedded = false }) {
                       type="button"
                       className="wbtn wbtn--sm"
                       onClick={() => {
+                        // setView clears the selection, so reveal comes after it
                         s.setActiveDay(d.id)
                         s.setView('itinerary')
                         s.reveal(point.id)
+                        s.setHover(null)
                       }}
                     >
                       去这天

@@ -228,11 +228,11 @@ export default function App() {
   /* Clicking a pin is the map half of the two-way link: it selects the place,
      switches to the day that place is on, and asks the list to scroll to it. */
   const handleSelect = (id) => {
+    /* Order matters: setView clears the selection, so the view has to settle
+       before the detail opens, not after. */
+    if (!desktop && s.view !== 'map') s.setView('itinerary')
+    if (s.isScheduled(id)) s.reveal(id)
     s.openDetail(id)
-    if (s.isScheduled(id)) {
-      s.reveal(id)
-      if (!desktop && s.view !== 'map') s.setView('itinerary')
-    }
   }
 
   const handlePlacePoint = (latlng, longPress) => {

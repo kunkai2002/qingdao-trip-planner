@@ -63,8 +63,11 @@ export function createTripSlice(set, get) {
 
     /* ================= view ================= */
 
+    /* Clearing `selectedId` is the point, not a side effect: a set selectedId
+       IS the open detail, so keeping it would make every nav destination render
+       the place you last tapped instead of the section you just asked for. */
     setView(view) {
-      set({ view, panel: null, selectedId: get().selectedId })
+      set({ view, panel: null, selectedId: null })
     },
     setActiveDay(id) {
       set({ activeDayId: id })
