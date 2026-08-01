@@ -153,7 +153,7 @@
   border-radius: 99px;
   display: grid;
   place-items: center;
-  font-size: 10.5px;
+  font-size: 0.6562rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--ink-1);
@@ -250,8 +250,15 @@
   border-radius: 50%;
   cursor: pointer;
   padding: 2.5px;
+  /* The ring belongs on the bubble. Inserting the hit-target rule mid-block
+     earlier orphaned these onto ::after, so the white ring was being drawn
+     around the invisible 44px disc instead of hugging the bubble. */
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.9),
+    0 3px 8px -2px rgba(8, 26, 33, 0.38);
+  transition: transform var(--t-hover) var(--e-out);
 }
-/* same 44x44 minimum as pins, for the smallest bubbles */
+/* same 44x44 minimum as pins, for the smallest bubbles — hit area only, no paint */
 .cluster::after {
   content: '';
   position: absolute;
@@ -261,10 +268,6 @@
   height: max(44px, 100%);
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  box-shadow:
-    0 0 0 1.5px rgba(255, 255, 255, 0.9),
-    0 3px 8px -2px rgba(8, 26, 33, 0.38);
-  transition: transform var(--t-hover) var(--e-out);
 }
 .cluster__inner {
   display: grid;
@@ -272,7 +275,7 @@
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  font-size: 12.5px;
+  font-size: 0.7812rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
@@ -333,7 +336,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11.5px;
+  font-size: 0.7188rem;
   font-weight: 650;
   line-height: 1.25;
   letter-spacing: -0.005em;

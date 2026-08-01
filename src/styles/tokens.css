@@ -28,12 +28,15 @@
   /* ---- type ---- */
   --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
           'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
-  --fs-display: clamp(22px, 2.4vw, 27px);
-  --fs-title: 19px;
-  --fs-head: 15px;
-  --fs-body: 14px;
-  --fs-sub: 12.5px;
-  --fs-micro: 11px;
+  /* rem, not px: a px ramp ignores the reader's browser font-size setting
+     entirely, which is the one accessibility control most people actually
+     change. At the default 16px root these are identical to the old values. */
+  --fs-display: clamp(1.375rem, 2.4vw, 1.6875rem);
+  --fs-title: 1.1875rem;
+  --fs-head: 0.9375rem;
+  --fs-body: 0.875rem;
+  --fs-sub: 0.78125rem;
+  --fs-micro: 0.6875rem;
   --lh-tight: 1.24;
   --lh-body: 1.62;
   --tracking-tight: -0.014em;

@@ -15,6 +15,7 @@ import { Chips } from './components/Chips.jsx'
 import { Dock } from './components/Dock.jsx'
 import { Panel } from './components/Panel.jsx'
 import { Toast } from './components/Toast.jsx'
+import { ModeStrip } from './components/ModeStrip.jsx'
 import { Onboarding } from './components/Onboarding.jsx'
 import { Dialog, useDialog } from './components/Dialog.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
@@ -508,6 +509,18 @@ export default function App() {
           </Panel>
         )}
       </AnimatePresence>
+
+      <ModeStrip
+        addMode={s.addMode}
+        diyMode={s.diyMode}
+        draftCount={s.draftStops.length}
+        movingName={s.movingId ? s.getPoint(s.movingId)?.name : null}
+        onExit={() => {
+          if (s.addMode) s.armAdd()
+          else if (s.diyMode) s.exitDiy()
+          else if (s.movingId) s.endMove()
+        }}
+      />
 
       <Toast toast={s.toast} onDismiss={s.dismissToast} />
       <Onboarding open={s.showIntro} onClose={s.dismissIntro} />

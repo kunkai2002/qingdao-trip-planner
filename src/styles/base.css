@@ -257,7 +257,7 @@ a:hover {
   white-space: nowrap;
 }
 .brand__sub {
-  font-size: 10.5px;
+  font-size: 0.6562rem;
   line-height: 1.3;
   color: var(--ink-3);
   white-space: nowrap;
@@ -339,7 +339,7 @@ a:hover {
 }
 .results__name {
   display: block;
-  font-size: 13.5px;
+  font-size: 0.8438rem;
   font-weight: 640;
   color: var(--ink-1);
   overflow: hidden;
@@ -367,7 +367,7 @@ a:hover {
   gap: 9px;
   width: 100%;
   padding: 10px 13px;
-  font-size: 12.5px;
+  font-size: 0.7812rem;
   line-height: 1.45;
   text-align: left;
   color: var(--ink-2);
@@ -394,7 +394,7 @@ a:hover {
   align-items: flex-start;
   gap: 10px;
   padding: 16px 15px;
-  font-size: 12.5px;
+  font-size: 0.7812rem;
   line-height: 1.6;
   color: var(--ink-3);
 }
@@ -600,7 +600,7 @@ a:hover {
   border-radius: 99px;
   display: grid;
   place-items: center;
-  font-size: 10.5px;
+  font-size: 0.6562rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--ink-on-accent);
@@ -827,7 +827,7 @@ a:hover {
   display: flex;
   gap: 10px;
   padding: 7px 0;
-  font-size: 13.5px;
+  font-size: 0.8438rem;
   border-bottom: 1px solid var(--g-hairline);
 }
 .kv:last-of-type {
@@ -878,7 +878,7 @@ a:hover {
   margin: 14px 0;
   padding: 11px 13px;
   border-radius: var(--r-sm);
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.62;
   color: var(--ink-1);
   background: color-mix(in srgb, var(--c) 17%, transparent);
@@ -976,7 +976,7 @@ a:hover {
   white-space: nowrap;
 }
 .seg__count {
-  font-size: 10.5px;
+  font-size: 0.6562rem;
   font-weight: 700;
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
@@ -1019,7 +1019,7 @@ a:hover {
   min-width: 0;
 }
 .row__name {
-  font-size: 13.8px;
+  font-size: 0.8625rem;
   font-weight: 650;
   line-height: 1.35;
   color: var(--ink-1);
@@ -1097,7 +1097,7 @@ a:hover {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 11.5px;
+  font-size: 0.7188rem;
   font-weight: 700;
   color: #fff;
   font-variant-numeric: tabular-nums;
@@ -1115,7 +1115,7 @@ a:hover {
   padding-top: 1px;
 }
 .stop__name {
-  font-size: 13.6px;
+  font-size: 0.85rem;
   font-weight: 640;
   line-height: 1.4;
   color: var(--ink-1);
@@ -1150,7 +1150,7 @@ a:hover {
   padding: 9px 0;
   border-bottom: 1px solid var(--g-hairline);
   cursor: pointer;
-  font-size: 13.2px;
+  font-size: 0.825rem;
   line-height: 1.56;
 }
 .check:last-child {
@@ -1336,7 +1336,7 @@ select.input {
   min-width: 0;
 }
 .switchrow__title {
-  font-size: 13.6px;
+  font-size: 0.85rem;
   font-weight: 640;
   color: var(--ink-1);
 }
@@ -1380,6 +1380,64 @@ select.input {
 }
 
 /* ------------------------------------------------------------
+   Mode strip
+   ------------------------------------------------------------ */
+.modestrip {
+  position: absolute;
+  left: 50%;
+  top: calc(env(safe-area-inset-top, 0px) + 116px);
+  z-index: 510;
+  --radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 460px);
+  padding: 8px 8px 8px 14px;
+  box-shadow:
+    inset 0 1px 0 var(--g-edge-top),
+    inset 0 0 0 1px color-mix(in srgb, var(--warn) 42%, transparent),
+    var(--sh-2),
+    var(--sh-3);
+}
+.modestrip__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--warn);
+}
+.modestrip__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.modestrip__text {
+  font-size: 0.8125rem;
+  font-weight: 640;
+  line-height: 1.3;
+  color: var(--ink-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.modestrip__hint {
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.modestrip__exit {
+  --radius: var(--r-pill);
+  flex: none;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: var(--fs-sub);
+  font-weight: 700;
+  color: var(--warn);
+}
+
+/* ------------------------------------------------------------
    Toast
    ------------------------------------------------------------ */
 .toast {
@@ -1394,7 +1452,7 @@ select.input {
   gap: 9px;
   max-width: min(86vw, 420px);
   padding: 10px 17px 10px 14px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 550;
   line-height: 1.45;
   text-align: left;
@@ -1452,7 +1510,7 @@ select.input {
   letter-spacing: var(--tracking-tight);
 }
 .modal__sub {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
   line-height: 1.6;
 }
@@ -1468,7 +1526,7 @@ select.input {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  font-size: 13.2px;
+  font-size: 0.825rem;
   line-height: 1.55;
   color: var(--ink-2);
 }
@@ -1562,7 +1620,7 @@ select.input {
   padding: 26px 8px;
   text-align: center;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.7;
 }
 .empty__icon {
@@ -1595,7 +1653,7 @@ select.input {
   border-radius: 99px;
   display: grid;
   place-items: center;
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -1627,7 +1685,7 @@ select.input {
   margin: 14px 0 0;
   padding: 10px 12px;
   border-radius: var(--r-sm);
-  font-size: 11.5px;
+  font-size: 0.7188rem;
   line-height: 1.5;
   color: var(--ink-3);
   background: var(--field-bg);
@@ -1667,7 +1725,7 @@ select.input {
   padding: 18px 22px;
   border-radius: var(--r-md);
   text-align: center;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
   background: rgba(var(--g-base), 0.9);
   box-shadow: var(--sh-2);
