@@ -42,24 +42,6 @@ jobs:
       - name: Install Bubblewrap
         run: npm i -g @bubblewrap/cli@latest
 
-      # Temporary: `bubblewrap build` rejected the runner's SDK with "The
-      # provided androidSdk isn't correct." Print the check itself rather than
-      # guessing what layout it wants.
-      - name: Show how Bubblewrap validates the SDK
-        run: |
-          set +e
-          ROOT="$(npm root -g)/@bubblewrap"
-          echo "ROOT=$ROOT"
-          ls "$ROOT"
-          echo '--- where the message lives ---'
-          grep -rn 'provided android' -i "$ROOT" --include='*.js'
-          echo '--- validation helpers ---'
-          grep -rn 'AndroidSdkPathValid\|isValidAndroidSdk\|build-tools\|cmdline-tools\|tools/bin' \
-            "$ROOT" --include='*.js' | grep -v '\.map' | head -60
-          echo '--- Config.js ---'
-          find "$ROOT" -name Config.js -not -path '*/node_modules/*' -exec cat {} \;
-          exit 0
-
       # Bubblewrap otherwise prompts to download its own JDK and Android SDK,
       # which hangs a non-interactive runner. Point it at the ones already here.
       - name: Point Bubblewrap at the runner's JDK and Android SDK
@@ -68,13 +50,33 @@ jobs:
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
           echo "JAVA_HOME=$JAVA_HOME"
           echo "ANDROID_SDK=$SDK"
-          ls "$SDK" || true
-          ls "$SDK/cmdline-tools" || true
           mkdir -p "$HOME/.bubblewrap"
           printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$SDK" \
             > "$HOME/.bubblewrap/config.json"
           cat "$HOME/.bubblewrap/config.json"
+
+          # Bubblewrap still drives the SDK through the retired
+          # `tools/bin/sdkmanager` path and rejects the whole SDK when it is
+          # missing ("The provided androidSdk isn't correct."). Modern SDK
+          # installs, the runner's included, only ship `cmdline-tools`.
+          # Bridge the old path to the new one.
+          sudo mkdir -p "$SDK/tools/bin"
+          sudo tee "$SDK/tools/bin/sdkmanager" > /dev/null <<EOF
+          #!/bin/sh
+          exec "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" "\$@"
+          EOF
+          sudo chmod +x "$SDK/tools/bin/sdkmanager"
+
+          # Install exactly the build-tools version Bubblewrap hardcodes, so the
+          # build does not stop halfway to fetch it or to ask about licences.
+          CORE=$(find "$(npm root -g)/@bubblewrap" \
+                   -path '*core/dist/lib/androidSdk/AndroidSdkTools.js' | head -1)
+          BT=$(node -e "console.log(require('$CORE').BUILD_TOOLS_VERSION)")
+          echo "Bubblewrap wants build-tools $BT"
           yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$SDK/tools/bin/sdkmanager" --install "build-tools;$BT" < /dev/null || true
+          echo "build-tools:" && ls "$SDK/build-tools"
+          echo "platforms:" && ls "$SDK/platforms"
 
       # A stable signing key matters: Android refuses to install an update
       # signed with a different key, so a key generated fresh each run forces an
