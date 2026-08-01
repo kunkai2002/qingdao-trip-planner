@@ -522,13 +522,18 @@ export function ItineraryView({ dialog, desktop }) {
           ) : null}
 
           <div className="wrow">
-            <button type="button" className="wbtn wbtn--primary" onClick={() => s.setView('explore')}>
-              <Icon name="plus" size={16} />
-              添加地点
-            </button>
+            {/* On a phone the same action is already pinned above the tab bar.
+                Two identical primary buttons on one screen is not emphasis,
+                it is a question about which one is the real one. */}
+            {desktop && (
+              <button type="button" className="wbtn wbtn--primary" onClick={() => s.setView('explore')}>
+                <Icon name="plus" size={16} />
+                添加地点
+              </button>
+            )}
             <button
               type="button"
-              className="wbtn"
+              className={`wbtn${desktop ? '' : ' wbtn--primary'}`}
               disabled={day.items.length < 3}
               onClick={async () => {
                 const ok = await dialog.confirm({
