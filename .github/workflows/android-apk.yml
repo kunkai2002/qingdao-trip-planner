@@ -42,6 +42,17 @@ jobs:
       - name: Install Bubblewrap
         run: npm i -g @bubblewrap/cli@latest
 
+      # Temporary: `bubblewrap build` rejected the runner's SDK with "The
+      # provided androidSdk isn't correct." Print the check itself rather than
+      # guessing what layout it wants.
+      - name: Show how Bubblewrap validates the SDK
+        run: |
+          set -uo pipefail
+          ROOT="$(npm root -g)/@bubblewrap"
+          grep -rn "isn't correct" "$ROOT" --include='*.js' | head -20
+          echo '--- Config.js ---'
+          cat "$ROOT/core/dist/lib/Config.js" || true
+
       # Bubblewrap otherwise prompts to download its own JDK and Android SDK,
       # which hangs a non-interactive runner. Point it at the ones already here.
       - name: Point Bubblewrap at the runner's JDK and Android SDK
