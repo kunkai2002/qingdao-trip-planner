@@ -5,6 +5,7 @@ import { makePinIcon, makeClusterIcon } from './pinIcon.js'
 import { METRO_LINES } from '../data/metro.js'
 import { CATS } from '../data/categories.js'
 import { wgs2gcj } from '../lib/geo.js'
+import { isFinePointer } from '../lib/useMediaQuery.js'
 
 const TILES = {
   road: {
@@ -115,6 +116,11 @@ export const MapCanvas = forwardRef(function MapCanvas(
       wheelPxPerZoomLevel: 110,
       // needed so Android/touch long-press raises `contextmenu` too
       tapHold: true,
+      /* Tile fade-in is what Leaflet's per-tile `mix-blend-mode` exists to
+         support, and the blend costs a compositor readback per tile. Off on
+         touch: tiles simply appear, and leaflet-theme.css drops the blend
+         to match. */
+      fadeAnimation: isFinePointer(),
     }).setView(wgs2gcj(36.062, 120.384), 13)
     mapRef.current = map
     if (import.meta.env.DEV) window.__map = map
@@ -204,12 +210,19 @@ export const MapCanvas = forwardRef(function MapCanvas(
     const map = mapRef.current
     if (!map) return
     const spec = TILES[basemap] || TILES.road
+    /* Tile work is the other steady drain on a phone. `updateWhenIdle: false`
+       requests new tiles continuously *during* a pan, and `keepBuffer: 3`
+       retains three screens of them off-view. That is the right trade with a
+       mouse and mains power; on a touch device it means every flick fires a
+       burst of requests and decodes. Leaflet's own default for mobile is
+       exactly this split. */
+    const fine = isFinePointer()
     const layer = L.tileLayer(spec.url, {
       subdomains: spec.subdomains,
       maxZoom: 19,
       minZoom: 8,
-      keepBuffer: 3,
-      updateWhenIdle: false,
+      keepBuffer: fine ? 3 : 1,
+      updateWhenIdle: !fine,
     })
     layer.addTo(map)
     layer.bringToBack()

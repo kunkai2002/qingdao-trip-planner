@@ -206,13 +206,21 @@
     0 0 0 3px rgba(255, 255, 255, 0.95),
     0 2px 6px -1px rgba(8, 26, 33, 0.5);
 }
+/* A static ring by default. The pulse is cheap per frame (transform + opacity,
+   so the compositor handles it without repainting) but it never stops, and it
+   only ever appears after you tap 定位 — i.e. while walking around on a
+   battery, which is the worst moment to keep the GPU awake at 60fps. */
 .userpos::after {
   content: '';
   position: absolute;
   inset: -5px;
   border-radius: 50%;
   background: rgba(47, 126, 240, 0.28);
-  animation: userPulse 2.4s var(--e-out) infinite;
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .userpos::after {
+    animation: userPulse 2.4s var(--e-out) infinite;
+  }
 }
 @keyframes userPulse {
   0% {
@@ -281,8 +289,15 @@
   letter-spacing: -0.02em;
   color: #10262f;
   background: rgba(255, 255, 255, 0.94);
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
+}
+/* The bubble is 94% opaque, so the blur behind it buys almost nothing — but a
+   backdrop-filter costs a readback per bubble every time the map moves, and
+   there can be a dozen of them. Keep it only where the GPU is plugged in. */
+@media (hover: hover) and (pointer: fine) {
+  .cluster__inner {
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
 }
 :root[data-theme='dark'] .cluster {
   box-shadow:
@@ -408,8 +423,16 @@
   margin: -12px 0 0 -12px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--pin-c) 40%, transparent);
-  animation: pinPulse 2.2s var(--e-out) infinite;
   pointer-events: none;
+  /* Static halo by default; it only pulses where there is a mouse. One small
+     element, but an infinite animation keeps the marker pane repainting. */
+  opacity: 0.5;
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .pin--sel::after {
+    opacity: 1;
+    animation: pinPulse 2.2s var(--e-out) infinite;
+  }
 }
 @keyframes pinPulse {
   0% {
@@ -492,9 +515,26 @@
 .metro-line {
   opacity: 0.62;
 }
-@media (prefers-reduced-motion: no-preference) {
+
+/* Leaflet's own stylesheet puts `mix-blend-mode: plus-lighter` on every tile,
+   to hide the seams while a tile fades in. A blend mode forces the compositor
+   to read back what is underneath — per tile, and there are ~15 on screen. It
+   is worth it during the fade; it is pure cost once the tile is opaque.
+   On touch the fade is turned off in MapCanvas, so the blend has no job left. */
+@media (pointer: coarse) {
+  .leaflet-container img.leaflet-tile {
+    mix-blend-mode: normal;
+  }
+}
+/* The dashes stay — they are what says "this is a route, not a border". The
+   *flow* is gated on a mouse: a 1.6s infinite stroke-dashoffset animation
+   repaints Leaflet's whole SVG overlay pane every frame, which on a phone is
+   real battery for an effect nobody asked for. */
+.route-line--flow {
+  stroke-dasharray: 10 8;
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
   .route-line--flow {
-    stroke-dasharray: 10 8;
     animation: dashFlow 1.6s linear infinite;
   }
 }

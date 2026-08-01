@@ -7,7 +7,7 @@ import { DEFAULT_STAY, clockToMinutes, formatDate } from './data/trip.js'
 import { buildTimeline } from './lib/transit.js'
 import { initGlassPointer } from './lib/glassPointer.js'
 import { useInstallPrompt, requestPersistentStorage } from './lib/install.js'
-import { useIsDesktop } from './lib/useMediaQuery.js'
+import { useFinePointer, useIsDesktop } from './lib/useMediaQuery.js'
 import { T } from './lib/motion.js'
 
 import { MapCanvas } from './map/MapCanvas.jsx'
@@ -47,9 +47,24 @@ const EditPanel = lazy(() =>
   import('./components/panels/EditPanel.jsx').then((m) => ({ default: m.EditPanel })),
 )
 
+/**
+ * A skeleton that waits before showing itself.
+ *
+ * These chunks are 1–7 kB and usually resolve within a frame or two, so an
+ * immediate fallback is not a loading state — it is a flash of grey bars that
+ * appears and vanishes before it can be read, which is exactly what "opening a
+ * view blinks a couple of times" looks like. Below the delay the swap is
+ * simply instant; above it, a real skeleton was genuinely warranted.
+ */
 function ViewSkeleton() {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), 180)
+    return () => clearTimeout(t)
+  }, [])
+  if (!show) return null
   return (
-    <div style={{ padding: 'var(--sp-4)', display: 'grid', gap: 10 }}>
+    <div className="viewskel">
       <span className="wskel" style={{ height: 22, width: '46%' }} />
       <span className="wskel" style={{ height: 88 }} />
       <span className="wskel" style={{ height: 88 }} />
@@ -62,6 +77,10 @@ export default function App() {
   const dialog = useDialog()
   const mapRef = useRef(null)
   const desktop = useIsDesktop()
+
+  /* Every always-on decorative effect hangs off this. See the ambient note in
+     base.css — on a battery they are pure heat. */
+  const fine = useFinePointer()
 
   const install = useInstallPrompt()
   const [storageState, setStorageState] = useState(null)
@@ -328,18 +347,13 @@ export default function App() {
       )}
 
       <div className="work">
+        {/* No entrance animation on the view swap. It was wrapped in a
+            motion.div with `display: contents`, which generates no box — so
+            the opacity and transform never applied and the only thing the
+            wrapper contributed was work. Switching section should feel
+            instant; the fade was never visible anyway. */}
         <ErrorBoundary compact label="工作区">
-          <Suspense fallback={<ViewSkeleton />}>
-            <motion.div
-              key={detailInWork ? `detail:${s.selectedId}` : view}
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={T.card}
-              style={{ display: 'contents' }}
-            >
-              {workNode}
-            </motion.div>
-          </Suspense>
+          <Suspense fallback={<ViewSkeleton />}>{workNode}</Suspense>
         </ErrorBoundary>
       </div>
 
@@ -370,7 +384,9 @@ export default function App() {
           />
         </ErrorBoundary>
 
-        <Ambient />
+        {/* Not merely un-animated on touch — not mounted. Four blurred layers
+            under a blend mode still cost compositing even when still. */}
+        {fine && <Ambient />}
 
         {/* Three controls, all about the map itself. Nothing that belongs to
             the itinerary lives out here any more. */}

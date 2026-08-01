@@ -10,6 +10,7 @@ import {
 } from '../data/trip.js'
 import { optimizeDay } from '../lib/optimize.js'
 import { formatDistance } from '../data/trip.js'
+import { isFinePointer } from '../lib/useMediaQuery.js'
 
 /* ============================================================
    The itinerary half of the store.
@@ -72,7 +73,11 @@ export function createTripSlice(set, get) {
     setActiveDay(id) {
       set({ activeDayId: id })
     },
+    /* Hover is a mouse idea. On touch, `pointerenter` still fires on tap and
+       each one rewrote store state, re-rendered the tree and rebuilt a marker
+       icon — for a highlight nobody can see because there is no cursor. */
     setHover(pointId) {
+      if (!isFinePointer()) return
       if (get().hoverPointId !== pointId) set({ hoverPointId: pointId })
     },
 

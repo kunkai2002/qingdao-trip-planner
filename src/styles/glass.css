@@ -126,12 +126,23 @@
    Liquid drift — the slow internal flow.
    Only on large panes: the point is that the trapped light moves,
    not that everything on screen animates.
+
+   🔴 Second reason a phone got hot. These animate REGISTERED CUSTOM PROPERTIES
+   feeding a conic-gradient, so unlike transform or opacity they cannot be
+   handed to the compositor — the gradient is re-painted every frame. And they
+   run on the very elements that also carry `backdrop-filter`, so each frame
+   costs a backdrop readback plus a blur plus a gradient repaint, forever.
+
+   Gated on having a mouse. Without one the light simply sits still, which on a
+   phone-sized pane nobody was going to notice anyway.
    ------------------------------------------------------------ */
-.glass--drift::before {
-  animation: rimDrift 26s linear infinite;
-}
-.glass--drift::after {
-  animation: sheenDrift 19s var(--e-inout) infinite alternate;
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .glass--drift::before {
+    animation: rimDrift 26s linear infinite;
+  }
+  .glass--drift::after {
+    animation: sheenDrift 19s var(--e-inout) infinite alternate;
+  }
 }
 @keyframes rimDrift {
   to {
