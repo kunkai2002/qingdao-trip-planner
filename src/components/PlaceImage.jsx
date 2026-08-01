@@ -112,7 +112,9 @@ function Scene({ cat, seed }) {
   const shift = r(2, 12)
   return (
     <>
-      <circle cx={70 - shift} cy="20" r="7" fill={s.accent} opacity=".85" />
+      {/* Kept away from the top-right corner: at the 76px card size a small
+          red disc parked in the corner reads as a notification badge. */}
+      <circle cx={30 + shift} cy="17" r="6.5" fill={s.accent} opacity=".8" />
       <path
         d={`M8 48 ${18 + shift} 36l8 6 10-12 9 9 12-14 11 12 8-5v12Z`}
         fill={s.ink}

@@ -162,10 +162,18 @@ export function OverviewView() {
                     D{i + 1} · {df.md} {p.day.title || df.weekday}
                   </span>
                   <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--tx-3)' }}>
+                    {/* A one-stop day has no legs, so "0 m" is not a small
+                        distance — it is the absence of one. */}
                     {p.day.items.length
-                      ? `${p.day.items.length} 个地点 · ${formatDistance(p.tl.totalMetres)} · 到 ${String(
-                          Math.floor(p.tl.endMinutes / 60),
-                        ).padStart(2, '0')}:${String(p.tl.endMinutes % 60).padStart(2, '0')}`
+                      ? [
+                          `${p.day.items.length} 个地点`,
+                          p.day.items.length > 1 ? formatDistance(p.tl.totalMetres) : null,
+                          `到 ${String(Math.floor(p.tl.endMinutes / 60)).padStart(2, '0')}:${String(
+                            p.tl.endMinutes % 60,
+                          ).padStart(2, '0')}`,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')
                       : '还没有安排'}
                   </span>
                 </span>

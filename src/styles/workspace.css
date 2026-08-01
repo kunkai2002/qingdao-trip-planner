@@ -189,6 +189,15 @@
   min-height: 0;
   background: var(--su-page);
   border-right: 1px solid var(--su-line);
+  /* Everything inside sizes itself against THIS column, not the window. */
+  container-type: inline-size;
+}
+
+/* The phone sheet hosts the same rows and is not inside .work, so it needs to
+   be a container in its own right or those rows would never get the wide
+   treatment on a large phone. */
+.panel--solid .panel__body {
+  container-type: inline-size;
 }
 
 .work__head {
@@ -400,6 +409,11 @@
   min-height: 32px;
   padding: 0 10px;
   font-size: var(--fs-micro);
+}
+/* `.wbtn` is used on <a> as well as <button> — a download link is still a
+   button to the eye, and should not arrive underlined and blue. */
+a.wbtn {
+  text-decoration: none;
 }
 /* Icon-only controls still have to clear 44px, so the visual box is padded out
    by a pseudo-element rather than by growing the button itself. */
@@ -666,33 +680,48 @@ textarea.field {
   z-index: 5;
 }
 
+/* The number badge doubles as the drag handle. */
 .icard__seq {
+  position: relative;
   display: grid;
   place-items: center;
   width: 30px;
   height: 30px;
+  padding: 0;
+  border: 0;
   border-radius: 10px;
   background: var(--day-c, var(--sea-600));
   color: #fff;
+  font: inherit;
   font-size: var(--fs-sub);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-}
-.icard__grip {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  margin-top: 2px;
-  border: 0;
-  background: transparent;
-  color: var(--tx-3);
-  border-radius: 8px;
   cursor: grab;
+  /* the browser must not claim the gesture, or dragging scrolls the list */
   touch-action: none;
 }
-.icard__grip:active {
+.icard__seq:active {
   cursor: grabbing;
+}
+/* Drawn at 30px, tappable at 44. */
+.icard__seq::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+}
+.icard:hover .icard__seq::before,
+.icard__seq:focus-visible::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.icard__timerow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 .icard__col {
   min-width: 0;
@@ -1135,17 +1164,31 @@ textarea.field {
   display: grid;
   gap: var(--sp-2);
 }
+/* Label above control by default, side by side only when the COLUMN is wide
+   enough — a container query, not a media query. The workspace is 360–440px
+   regardless of how wide the window is, so keying this off the viewport put a
+   three-line hint next to a date picker inside a 360px column on a 985px
+   screen. What matters is the width of the thing the row lives in. */
 .setrow {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   min-height: 44px;
-  padding: 4px 0;
+  padding: 6px 0;
   border-top: 1px solid var(--su-line-soft);
 }
 .setrow:first-of-type {
   border-top: 0;
+}
+@container (min-width: 420px) {
+  .setrow {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: 4px 0;
+  }
 }
 .setrow__t {
   display: grid;
@@ -1163,26 +1206,16 @@ textarea.field {
 .setrow__c {
   flex: none;
   display: flex;
-  justify-content: flex-end;
-  max-width: 62%;
+  justify-content: flex-start;
+  max-width: none;
 }
-.setrow__c .wrow {
-  justify-content: flex-end;
-}
-
-/* Wrap instead of squashing the control when the label is long. */
-@media (max-width: 460px) {
-  .setrow {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-  }
+@container (min-width: 420px) {
   .setrow__c {
-    max-width: none;
-    justify-content: flex-start;
+    justify-content: flex-end;
+    max-width: 62%;
   }
   .setrow__c .wrow {
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
 }
 
@@ -1578,10 +1611,6 @@ textarea.field {
   }
   .wbtn--sm {
     padding: 0 12px;
-  }
-  .icard__grip {
-    width: 44px;
-    height: 44px;
   }
   .leg {
     padding-top: 2px;

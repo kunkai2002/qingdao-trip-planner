@@ -179,22 +179,23 @@ function ItemCard({ row, day, days, dialog, flashId, desktop }) {
       onPointerEnter={() => s.setHover(point.id)}
       onPointerLeave={() => s.setHover(null)}
     >
-      <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
-        <span className="icard__seq">{row.index + 1}</span>
-        {/* Drag lives on the handle, not the card: the card itself has to stay
-            tappable, and a card-wide drag on a phone fights the scroll. */}
-        <button
-          ref={setActivatorNodeRef}
-          type="button"
-          className="icard__grip"
-          aria-label={`拖动调整「${point.name}」的顺序，或用方向键移动`}
-          onClick={(e) => e.stopPropagation()}
-          {...attributes}
-          {...listeners}
-        >
-          <Icon name="gripDots" size={15} />
-        </button>
-      </div>
+      {/* The number IS the handle. A separate grip under it added a second
+          control, 34px of height the left column had nothing to fill with, and
+          a faint glyph that read as a smudge — while the number is already the
+          thing you are reordering. Drag stays off the card body: a card-wide
+          drag fights the scroll on a phone. */}
+      <button
+        ref={setActivatorNodeRef}
+        type="button"
+        className="icard__seq"
+        aria-label={`第 ${row.index + 1} 站「${point.name}」，拖动或用方向键调整顺序`}
+        title="拖动调整顺序"
+        onClick={(e) => e.stopPropagation()}
+        {...attributes}
+        {...listeners}
+      >
+        {row.index + 1}
+      </button>
 
       <div className="icard__col">
         <div className="icard__title">{point.name}</div>
@@ -240,18 +241,35 @@ function ItemCard({ row, day, days, dialog, flashId, desktop }) {
       {/* On a phone these are text, not buttons: at this size they cannot reach
           44px without overlapping each other, and both actions are already in
           the ⋯ menu, which can. */}
+      {/* Time and the ⋯ share a row so the right column is two lines, like the
+          left one. Stacked, it was three lines tall and the card grew 51px of
+          empty space beside the title. */}
       <div className="icard__side">
-        {desktop ? (
-          <button type="button" className="icard__time icard__tbtn" onClick={(e) => (e.stopPropagation(), askArrival())} title="设定到达时间">
-            {row.pinned && <Icon name="lock" size={10} className="icard__pin" />}
-            {minutesToClock(row.arrive)}
+        <div className="icard__timerow">
+          {desktop ? (
+            <button type="button" className="icard__time icard__tbtn" onClick={(e) => (e.stopPropagation(), askArrival())} title="设定到达时间">
+              {row.pinned && <Icon name="lock" size={10} className="icard__pin" />}
+              {minutesToClock(row.arrive)}
+            </button>
+          ) : (
+            <span className="icard__time">
+              {row.pinned && <Icon name="lock" size={10} className="icard__pin" />}
+              {minutesToClock(row.arrive)}
+            </span>
+          )}
+          <button
+            ref={menuBtn}
+            type="button"
+            className="wbtn wbtn--ghost wbtn--icon"
+            aria-label={`「${point.name}」的更多操作`}
+            onClick={(e) => {
+              e.stopPropagation()
+              setMenu(true)
+            }}
+          >
+            <Icon name="sliders" size={15} />
           </button>
-        ) : (
-          <span className="icard__time">
-            {row.pinned && <Icon name="lock" size={10} className="icard__pin" />}
-            {minutesToClock(row.arrive)}
-          </span>
-        )}
+        </div>
         {desktop ? (
           <button type="button" className="icard__timesub icard__tbtn" onClick={(e) => (e.stopPropagation(), askDuration())} title="调整停留时间">
             停留 {formatDuration(row.stay)}
@@ -259,18 +277,6 @@ function ItemCard({ row, day, days, dialog, flashId, desktop }) {
         ) : (
           <span className="icard__timesub">停留 {formatDuration(row.stay)}</span>
         )}
-        <button
-          ref={menuBtn}
-          type="button"
-          className="wbtn wbtn--ghost wbtn--icon"
-          aria-label={`「${point.name}」的更多操作`}
-          onClick={(e) => {
-            e.stopPropagation()
-            setMenu(true)
-          }}
-        >
-          <Icon name="sliders" size={15} />
-        </button>
       </div>
 
       <Pop anchor={menuBtn} open={menu} onClose={() => setMenu(false)} estHeight={300}>

@@ -10,6 +10,12 @@ import { SectionHead } from './bits.jsx'
    On a phone this is also the way into 总览 / 收藏 / 清单, which have no tab of
    their own: four tabs is the limit before the bar becomes a menu. */
 
+/* `releases/latest/download/<fixed asset name>` always resolves to the newest
+   published build, so this link never needs updating when a new APK ships.
+   That only holds because the workflow renames the artefact to a fixed name. */
+const APK_URL =
+  'https://github.com/kunkai2002/qingdao-trip-planner/releases/latest/download/qingdao-trip-planner.apk'
+
 function Row({ label, hint, children }) {
   return (
     <div className="setrow">
@@ -231,14 +237,54 @@ export function SettingsView({ dialog, install, storage, onInstall, onImport, on
               恢复默认
             </button>
           </div>
-          {install?.available && (
-            <div className="wrow">
-              <button type="button" className="wbtn" onClick={onInstall}>
+        </section>
+
+        {/* Two different ways onto a phone, and they are genuinely different —
+            so say which one to pick instead of listing both and leaving it. */}
+        <section className="card setcard">
+          <SectionHead title="装到手机上" />
+          <p className="muted">
+            <b>安装网页版</b>是首选：桌面有独立图标、全屏、
+            <b>而且会自动更新</b>，改完就生效，不用重装。
+          </p>
+          <div className="wrow">
+            {install?.available ? (
+              <button type="button" className="wbtn wbtn--primary" onClick={onInstall}>
                 <Icon name="pinPlus" size={15} />
-                装到手机上
+                安装到手机
               </button>
+            ) : (
+              <span className="fineprint">
+                这个浏览器现在没提供安装入口。安卓 Chrome 里是右上角 ⋮ →「安装应用」，
+                iPhone Safari 是分享 →「加入主画面」。
+              </span>
+            )}
+          </div>
+
+          <div className="setrow">
+            <div className="setrow__t">
+              <span>下载 APK 安装包</span>
+              <small>
+                需要一个能直接传给别人的文件时用（微信、数据线）。装好后<b>不会自动更新</b>，
+                出了新版要回这里重新下载。
+              </small>
             </div>
-          )}
+            <div className="setrow__c">
+              <a
+                className="wbtn"
+                href={APK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                download
+              >
+                <Icon name="download" size={15} />
+                下载 APK
+              </a>
+            </div>
+          </div>
+          <p className="fineprint">
+            安卓会问「是否允许安装未知来源应用」，允许即可。约 1.3 MB。
+          </p>
         </section>
 
         <section className="card setcard">
