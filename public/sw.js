@@ -14,7 +14,9 @@
    half-cached basemap is more confusing than an obviously missing one.
    ============================================================ */
 
-const VERSION = 'v3'
+/* Bumped to drop the shell cached by v3, which could hold an index.html
+   pointing at a bundle that no longer exists. */
+const VERSION = 'v4'
 const SHELL = `shell-${VERSION}`
 const ASSETS = `assets-${VERSION}`
 
@@ -53,11 +55,19 @@ self.addEventListener('fetch', (event) => {
   // Third-party (map tiles): straight to the network, never cached.
   if (url.origin !== self.location.origin) return
 
-  // Navigations: prefer the network so a deploy is picked up immediately,
-  // fall back to the cached shell when offline.
+  /* Navigations: prefer the network so a deploy is picked up immediately, fall
+     back to the cached shell when offline.
+
+     🔴 `cache: 'reload'` is the whole point. Plain `fetch(request)` is still
+     allowed to come out of the browser's own HTTP cache, and GitHub Pages
+     serves index.html with `max-age=600` — so "network-first" quietly returned
+     a ten-minute-old document pointing at the previous build's hashed bundle.
+     Measured exactly that: the site served index-DIIUJ6ZP.js while the page
+     had loaded index-Bvia5BYb.js. It made deploys look like they had not
+     landed, which is the one promise an installed app rests on. */
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(new Request(request.url, { cache: 'reload', credentials: 'same-origin' }))
         .then((res) => {
           const copy = res.clone()
           caches.open(SHELL).then((c) => c.put('./index.html', copy)).catch(() => {})
