@@ -24,7 +24,17 @@ import { Note, SectionHead, Stat } from './bits.jsx'
    dependency and another thing to go stale. */
 function CoastArt() {
   return (
-    <svg className="hero__art" viewBox="0 0 400 76" preserveAspectRatio="none" aria-hidden="true">
+    <svg
+      className="hero__art"
+      viewBox="0 0 400 76"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      /* Without an explicit width the SVG takes its 400px intrinsic size and
+         sticks out of a narrow hero. It is clipped, but a stray 400px box also
+         drags the hero's own min-content along with it. */
+      width="100%"
+      height="76"
+    >
       <path
         d="M0 54h44l10-14 12 14h30l14-22 16 22h26l12-16 14 16h40l16-24 18 24h32l12-14 14 14h80v22H0Z"
         fill="rgba(255,255,255,.16)"

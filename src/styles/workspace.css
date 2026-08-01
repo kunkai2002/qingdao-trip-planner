@@ -20,6 +20,7 @@
      past the viewport. Measured 532px of column inside a 390px phone before
      this — clipped by overflow:hidden, so nothing looked wrong until you tried
      to reach the right-hand side of a card. */
+  /* Columns come from [data-layout] below — React owns the shape. */
   grid-template-columns: var(--nav-w) var(--work-w) minmax(0, 1fr);
   /* Same floor on the row axis. In landscape (844x390) the head plus the list's
      min-content made the workspace 492px tall inside a 390px window — clipped,
@@ -47,7 +48,7 @@
 /* Full-width map: the workspace column can be folded away when the map is the
    thing you are actually working in. */
 .shell[data-work='hidden'] {
-  grid-template-columns: var(--nav-w) 0 1fr;
+  grid-template-columns: var(--nav-w) 0 minmax(0, 1fr);
 }
 .shell[data-work='hidden'] .work {
   display: none;
@@ -56,6 +57,12 @@
 /* ------------------------------------------------------------
    Rail — one of the few places glass belongs
    ------------------------------------------------------------ */
+
+/* Rendered only in the desktop shape; hidden here too so the two can never
+   briefly disagree while a foldable is being opened. */
+.shell:not([data-layout='desktop']) .rail {
+  display: none;
+}
 
 .rail {
   position: relative;
@@ -185,7 +192,17 @@
   position: relative;
   z-index: 30;
   display: grid;
+  /* 🔴 The column must be declared. Only the rows were, so the single column
+     was IMPLICIT — and an implicit track is `auto`, i.e. sized to content. The
+     box was correctly clamped to 390px on a phone while its column measured
+     532.84px, so the header and the whole scroller were laid out 533px wide
+     and everything past the screen edge was silently cut: the arrival times,
+     the stay durations, the right half of every note.
+     Same trap as the outer grid, one level in and easier to miss because
+     nothing here *looks* like it needs columns. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
   min-height: 0;
   background: var(--su-page);
   border-right: 1px solid var(--su-line);
@@ -215,6 +232,31 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
+}
+
+/* 🔴 Both of these are flexbox defaults biting, and both shipped to a real
+   phone before anyone saw them.
+
+   `flex-shrink: 1` is the default, and this column has a bounded height — so
+   instead of overflowing into the scroll, the sections were COMPRESSED. The
+   checklist groups went from 422px to 107px and `overflow: hidden` cut six
+   items down to one. It looked like a rendering bug; it was the browser doing
+   exactly what it was told.
+
+   `min-width: auto` is the other default: a flex item refuses to shrink below
+   its own min-content width. An itinerary card measured 501px wide inside a
+   390px screen, so its right-hand column — the arrival time and the stay —
+   was simply pushed off the edge.
+
+   Sections size to their content and scroll; they never squash, and they never
+   push past the column. */
+.work__body > * {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.itin,
+.icard {
+  min-width: 0;
 }
 
 .work__title {
@@ -579,7 +621,7 @@ textarea.field {
 }
 .daysum__stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--sp-2);
 }
 .stat {
@@ -637,7 +679,7 @@ textarea.field {
 .icard {
   position: relative;
   display: grid;
-  grid-template-columns: 30px 1fr auto;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
   align-items: start;
   gap: var(--sp-3);
   padding: var(--sp-3);
@@ -861,7 +903,7 @@ textarea.field {
 
 .pcard {
   display: grid;
-  grid-template-columns: 76px 1fr;
+  grid-template-columns: 76px minmax(0, 1fr);
   gap: var(--sp-3);
   padding: var(--sp-3);
   border: 1px solid var(--su-line);
@@ -1091,7 +1133,7 @@ textarea.field {
 .hero__stats {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--sp-3);
   margin-top: var(--sp-4);
 }
@@ -1117,7 +1159,7 @@ textarea.field {
 
 .dayrow {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--sp-3);
   width: 100%;
@@ -1412,7 +1454,7 @@ textarea.field {
 }
 .maplayers__row {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   min-height: 38px;
@@ -1530,7 +1572,7 @@ textarea.field {
   bottom: 0;
   z-index: 500;
   display: none;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   padding: 6px 6px max(6px, env(safe-area-inset-bottom, 0px));
   background: var(--su-raise);
   border-top: 1px solid var(--su-line);
@@ -1586,103 +1628,163 @@ textarea.field {
   min-height: 46px;
 }
 
-/* 719/720 and not 767/768: base.css and `useIsDesktop` already split there for
-   the bottom sheet. A second, different breakpoint would give a 48px-wide band
-   where the shell thinks it is a phone and the sheet thinks it is a desktop. */
-@media (max-width: 719px) {
-  .shell {
-    grid-template-columns: minmax(0, 1fr);
+/* ---- 44px minimum, measured rather than assumed ----
+   `--touch` is the floor every control is sized against, and TWO things raise
+   it. The pointer, because an unfolded foldable is 884px wide, gets the desktop
+   layout, and is still driven by a thumb — a width-only rule would have left it
+   with 32px chips. And the layout, because a fine-pointer browser resized to a
+   phone window is how this actually gets checked; without that the rules go
+   quiet exactly when someone tries to verify them.
+   Desktop stays at its own sizes: a mouse is not a thumb, and 44px chips would
+   double the height of the filter row for no gain. */
+:root {
+  --touch: 0px;
+}
+@media (pointer: coarse) {
+  :root {
+    --touch: 44px;
   }
-  .rail {
-    display: none;
-  }
+}
+.shell[data-layout='phone'],
+.shell[data-layout='split'] {
+  --touch: 44px;
+}
 
-  /* ---- 44px minimum, measured rather than assumed ----
-     Everything below failed a real sweep of the rendered page at 390x844. The
-     desktop sizes stay as they are: a mouse is not a thumb, and 44px chips
-     would make the filter row twice as tall for no gain. */
-  .wbtn,
-  .wbtn--sm,
-  .chipx,
-  .field,
-  .chkitem,
-  .dayrow,
-  .setrow {
-    min-height: 44px;
-  }
-  .wbtn,
-  .wbtn--sm {
-    min-width: 44px;
-  }
-  .wbtn--sm {
-    padding: 0 12px;
-  }
-  .leg {
-    padding-top: 2px;
-    padding-bottom: 2px;
-  }
-  .leg__mode {
-    min-height: 44px;
-    padding: 4px 8px;
-  }
-  /* The list is the primary surface on a phone, so its cards get more room
-     than the desktop density. */
-  .icard {
-    padding: var(--sp-3) 10px;
-  }
-  .maplegend__i {
-    min-height: 44px;
-  }
-  .wbtn--icon {
-    min-width: 44px;
-    width: 44px;
-  }
-  /* Dragging the sheet is the main gesture on this screen, so the handle gets
-     a real target instead of the 22px strip it was. */
-  .panel__grab {
-    min-height: 44px;
-  }
-  /* The legend can eat the bottom of a small screen; cap it and let it scroll
-     rather than pushing the map controls off. */
-  .maplegend {
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
-    max-height: 30vh;
-    overflow-y: auto;
-  }
-  .work {
-    border-right: 0;
-  }
-  /* Both columns occupy the same cell; the active tab decides which is on top.
-     The map is never unmounted — remounting Leaflet on every tab switch would
-     throw away the view and re-request every tile. */
-  .work,
-  .shell__map {
-    grid-area: 1 / 1;
-  }
-  .shell[data-mobile='map'] .work {
-    display: none;
-  }
-  .shell[data-mobile='page'] .shell__map {
-    /* kept in the layout so Leaflet still has a size, just not visible */
-    visibility: hidden;
-    pointer-events: none;
-  }
-  .work__body {
-    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
-  }
-  .tabbar {
-    display: grid;
-  }
-  .fabbar {
-    display: flex;
-  }
-  .shell[data-mobile='map'] .fabbar {
-    display: none;
-  }
-  .daysum__stats {
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--sp-3);
-  }
+.wbtn {
+  min-height: max(40px, var(--touch));
+  min-width: var(--touch);
+}
+.wbtn--sm {
+  min-height: max(32px, var(--touch));
+  padding: 0 max(10px, calc(var(--touch) / 4));
+}
+.chipx {
+  min-height: max(32px, var(--touch));
+}
+.field {
+  min-height: max(40px, var(--touch));
+}
+.field--sm {
+  min-height: max(34px, var(--touch));
+}
+.chkitem,
+.dayrow {
+  min-height: var(--touch);
+}
+.setrow {
+  min-height: max(44px, var(--touch));
+}
+.leg__mode {
+  min-height: max(22px, var(--touch));
+}
+.maplegend__i {
+  min-height: max(32px, var(--touch));
+}
+.wbtn--icon {
+  min-width: max(36px, var(--touch));
+  width: max(36px, var(--touch));
+  min-height: max(36px, var(--touch));
+}
+/* Dragging the sheet is the main gesture on that screen, so the handle gets a
+   real target instead of the 22px strip it was. */
+.panel__grab {
+  min-height: max(22px, var(--touch));
+}
+
+/* Density and chrome clearance for the two touch shapes. */
+.shell[data-layout='split'] .icard,
+.shell[data-layout='phone'] .icard {
+  padding: var(--sp-3) 10px;
+}
+.shell[data-layout='split'] .work__body,
+.shell[data-layout='phone'] .work__body {
+  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+}
+.shell[data-layout='split'] .maplegend,
+.shell[data-layout='phone'] .maplegend {
+  bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  max-height: 30vh;
+  overflow-y: auto;
+}
+.shell[data-layout='phone'] .daysum__stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+
+/* ------------------------------------------------------------
+   The three shapes, keyed on what React decided.
+
+   'split' exists for unfolded foldables: 673x841 is roughly square and has
+   plenty of room for the list AND the map, but the phone layout gave it one
+   column with the map hidden behind a tab. It keeps the thumb-reachable tab
+   bar and puts the map beside the itinerary instead of behind it.
+   ------------------------------------------------------------ */
+
+.shell[data-layout='desktop'] {
+  grid-template-columns: var(--nav-w) var(--work-w) minmax(0, 1fr);
+}
+
+.shell[data-layout='split'] {
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+}
+.shell[data-layout='split'] .work {
+  border-right: 1px solid var(--su-line);
+}
+/* The map is a peer here, so it stays visible on the list tabs. */
+.shell[data-layout='split'][data-mobile='page'] .shell__map {
+  visibility: visible;
+  pointer-events: auto;
+}
+/* Tapping 地图 gives it the whole width. Hiding the workspace is not enough —
+   the map would just slide into the 340px track the list vacated, so the
+   column definition has to collapse too. */
+.shell[data-layout='split'][data-mobile='map'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.shell[data-layout='split'][data-mobile='map'] .work {
+  display: none;
+}
+/* The primary action belongs over the list it acts on, not over the map. */
+.shell[data-layout='split'] .fabbar {
+  right: auto;
+  width: 340px;
+}
+
+.shell[data-layout='phone'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* Both panes share one cell; the active tab decides which is on top. The map
+   is never unmounted — remounting Leaflet on every tab switch would throw away
+   the view and re-request every tile. */
+.shell[data-layout='phone'] .work,
+.shell[data-layout='phone'] .shell__map {
+  grid-area: 1 / 1;
+}
+.shell[data-layout='phone'] .work {
+  border-right: 0;
+}
+.shell[data-layout='phone'][data-mobile='map'] .work {
+  display: none;
+}
+.shell[data-layout='phone'][data-mobile='page'] .shell__map {
+  /* kept in the layout so Leaflet still has a size, just not visible */
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Chrome that belongs to the two touch shapes. They live inside .shell, so
+   these are descendant selectors — React also gates them, this is the
+   stylesheet agreeing rather than guessing. */
+.shell[data-layout='split'] .tabbar,
+.shell[data-layout='phone'] .tabbar {
+  display: grid;
+}
+.shell[data-layout='split'] .fabbar,
+.shell[data-layout='phone'] .fabbar {
+  display: flex;
+}
+.shell[data-mobile='map'] .fabbar {
+  display: none;
 }
 
 /* Short viewports — a phone held sideways is the common one. 171px of header
@@ -1730,7 +1832,7 @@ textarea.field {
 }
 @media (max-width: 900px) and (max-height: 500px) {
   .daysum__stats {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -1740,7 +1842,7 @@ textarea.field {
     --work-w: 360px;
   }
   .daysum__stats {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

@@ -7,7 +7,7 @@ import { DEFAULT_STAY, clockToMinutes, formatDate } from './data/trip.js'
 import { buildTimeline } from './lib/transit.js'
 import { initGlassPointer } from './lib/glassPointer.js'
 import { useInstallPrompt, requestPersistentStorage } from './lib/install.js'
-import { useFinePointer, useIsDesktop } from './lib/useMediaQuery.js'
+import { useFinePointer, useIsDesktop, useLayoutMode } from './lib/useMediaQuery.js'
 import { T } from './lib/motion.js'
 
 import { MapCanvas } from './map/MapCanvas.jsx'
@@ -77,6 +77,9 @@ export default function App() {
   const dialog = useDialog()
   const mapRef = useRef(null)
   const desktop = useIsDesktop()
+  /* 'desktop' | 'split' | 'phone' — published to the shell so the stylesheet
+     and React can never disagree about the shape. See useLayoutMode. */
+  const layout = useLayoutMode()
 
   /* Every always-on decorative effect hangs off this. See the ambient note in
      base.css — on a battery they are pure heat. */
@@ -331,6 +334,7 @@ export default function App() {
   return (
     <div
       className="shell"
+      data-layout={layout}
       data-rail={railMini ? 'mini' : undefined}
       data-mobile={desktop ? undefined : mobileMap ? 'map' : 'page'}
     >

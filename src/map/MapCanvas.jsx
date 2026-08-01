@@ -195,8 +195,19 @@ export const MapCanvas = forwardRef(function MapCanvas(
     }
     window.addEventListener('online', onOnline)
 
+    /* Leaflet only listens to `window` resize, but this map is a grid column:
+       it changes size when the workspace folds away, when the rail collapses,
+       and — the case that made this necessary — when a foldable is opened or
+       closed and the layout crosses a breakpoint. Watch the element itself. */
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize({ animate: false, pan: false })
+      setClusterTick((n) => n + 1)
+    })
+    ro.observe(hostRef.current)
+
     return () => {
       map.off()
+      ro.disconnect()
       window.removeEventListener('online', onOnline)
       onMoveEnd()
       map.remove()
