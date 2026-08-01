@@ -204,10 +204,26 @@ jobs:
               echo "  next build cannot upgrade over it (uninstall first). Add the"
               echo "  \`ANDROID_KEYSTORE\` secret for a stable key."
             fi
-            echo "- the URL bar stays visible until \`https://kunkai2002.github.io/.well-known/assetlinks.json\`"
-            echo "  lists this fingerprint — that file lives at the domain root, i.e. in the"
-            echo "  \`kunkai2002.github.io\` repository, not this one."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Asset-link mismatch is a silent failure: the APK installs and runs, it
+      # just quietly shows a URL bar. Nothing in the build notices, so check.
+      - name: Check the fingerprint against the published assetlinks.json
+        env:
+          SHA: ${{ steps.out.outputs.sha256 }}
+        run: |
+          set -uo pipefail
+          URL=https://kunkai2002.github.io/.well-known/assetlinks.json
+          PUB=$(curl -fsS "$URL" || echo 'FETCH FAILED')
+          echo "$PUB"
+          if echo "$PUB" | grep -qiF "$SHA"; then
+            echo "- assetlinks lists this fingerprint: the app runs full screen" \
+              >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::$URL does not list $SHA, so Android will fall back to a Custom Tab with a visible URL bar. Update .well-known/assetlinks.json in the kunkai2002.github.io repository."
+            echo "- :warning: assetlinks does **not** list this fingerprint — the URL bar will show" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
@@ -242,6 +258,9 @@ jobs:
           if [ "${{ steps.key.outputs.stable }}" != "true" ]; then
             NOTES="$NOTES
           - :warning: 本次用的是**一次性签名密钥**，装得上，但下一次构建无法覆盖安装（要先卸载）。"
+          else
+            NOTES="$NOTES
+          - 固定签名密钥，以后的版本可以直接覆盖安装，不用先卸载。"
           fi
           gh release create "$TAG" qingdao-trip-planner.apk \
             --title "安卓安装包 ${{ inputs.app_version }} (build ${{ github.run_number }})" \
