@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useStore, routeCoords, routeDistance } from './store/useStore.js'
 import { runSearch, countByCat } from './lib/search.js'
@@ -20,10 +20,24 @@ import { Onboarding } from './components/Onboarding.jsx'
 import { Dialog, useDialog } from './components/Dialog.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
 import { DetailPanel } from './components/panels/DetailPanel.jsx'
-import { EditPanel } from './components/panels/EditPanel.jsx'
-import { RoutesPanel } from './components/panels/RoutesPanel.jsx'
-import { ChecklistPanel } from './components/panels/ChecklistPanel.jsx'
-import { MenuPanel } from './components/panels/MenuPanel.jsx'
+
+/* Only the map and its chrome are needed to render the first screen. The
+   editor, the route builder, the checklist and the settings pane are all
+   behind a deliberate interaction, so they load when first opened instead of
+   sitting in the initial bundle. DetailPanel stays eager — tapping a pin is
+   the first thing most people do, and a spinner there would be silly. */
+const EditPanel = lazy(() =>
+  import('./components/panels/EditPanel.jsx').then((m) => ({ default: m.EditPanel })),
+)
+const RoutesPanel = lazy(() =>
+  import('./components/panels/RoutesPanel.jsx').then((m) => ({ default: m.RoutesPanel })),
+)
+const ChecklistPanel = lazy(() =>
+  import('./components/panels/ChecklistPanel.jsx').then((m) => ({ default: m.ChecklistPanel })),
+)
+const MenuPanel = lazy(() =>
+  import('./components/panels/MenuPanel.jsx').then((m) => ({ default: m.MenuPanel })),
+)
 
 /* `detent` is the resting height of the phone sheet: a POI card sits low so the
    map stays the subject, a long list opens tall because reading is the point. */
@@ -157,7 +171,8 @@ export default function App() {
         if (typing && s.query) {
           s.setQuery('')
           t.blur()
-        } else if (s.panel) requestClose()
+        } else if (s.panelFrom) s.popPanel()
+      else if (s.panel) requestClose()
         return
       }
       /* `/` only fired when focus was literally on <body>, so it stopped
@@ -371,7 +386,7 @@ export default function App() {
         onExitDiy={s.exitDiy}
         onRemoveDraft={s.removeFromDraft}
         onSaveDraft={handleSaveDraft}
-        onOpenDetail={s.openDetail}
+        onOpenDetail={(id) => s.drillTo(id, 'routes')}
       />
     )
   } else if (s.panel === 'checklist') {
@@ -397,7 +412,7 @@ export default function App() {
         onExport={s.exportData}
         onImport={handleImport}
         onReset={handleResetData}
-        onOpenDetail={s.openDetail}
+        onOpenDetail={(id) => s.drillTo(id, 'menu')}
         onReplayIntro={() => {
           s.closePanel()
           useStore.setState({ showIntro: true })
@@ -492,6 +507,8 @@ export default function App() {
             onClose={requestClose}
             resetKey={`${s.panel}:${s.selectedId || ''}`}
             initialDetent={meta.detent || 'half'}
+            onBack={s.panelFrom ? s.popPanel : undefined}
+            backLabel={s.panelFrom ? PANEL_META[s.panelFrom]?.title : undefined}
           >
             {/* The glass pane is the shared element across views, so only the
                 contents change. Keyed remount + fade-in, deliberately NOT
@@ -504,7 +521,17 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               transition={T.card}
             >
-              {content}
+              <Suspense
+                fallback={
+                  <div className="panelload">
+                    <span className="skeleton" style={{ height: 18, width: '55%' }} />
+                    <span className="skeleton" style={{ height: 14, width: '80%' }} />
+                    <span className="skeleton" style={{ height: 14, width: '70%' }} />
+                  </div>
+                }
+              >
+                {content}
+              </Suspense>
             </motion.div>
           </Panel>
         )}

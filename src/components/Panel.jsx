@@ -34,6 +34,8 @@ export function Panel({
   footer,
   resetKey,
   initialDetent = 'half',
+  onBack,
+  backLabel,
 }) {
   const desktop = useIsDesktop()
   const reduced = useReducedMotion()
@@ -174,6 +176,17 @@ export function Panel({
       />
 
       <header className="panel__head" ref={headRef}>
+        {onBack && (
+          <GlassButton
+            depth="thin"
+            className="panel__back"
+            onClick={onBack}
+            title={backLabel ? `返回${backLabel}` : '返回'}
+            aria-label={backLabel ? `返回${backLabel}` : '返回'}
+          >
+            <Icon name="chevronLeft" size={16} />
+          </GlassButton>
+        )}
         <div className="panel__titles">
           {eyebrow && (
             <div className="panel__eyebrow">

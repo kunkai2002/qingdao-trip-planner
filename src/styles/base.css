@@ -657,8 +657,19 @@ a:hover {
   gap: 12px;
   padding: 2px 18px 8px;
 }
+.panel__back {
+  --radius: 12px;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  margin-top: 2px;
+  color: var(--ink-2);
+}
 .panel__titles {
   min-width: 0;
+  flex: 1;
 }
 .panel__eyebrow {
   display: flex;
@@ -1614,6 +1625,15 @@ select.input {
   to {
     background-position: -60% 0;
   }
+}
+
+/* Shown while a lazily-loaded panel arrives. Matches the shape of what is
+   coming so the swap is not a jolt. */
+.panelload {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 0 4px;
 }
 
 .empty {

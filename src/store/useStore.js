@@ -115,6 +115,7 @@ export const useStore = create((set, get) => ({
 
   /* ---- selection / modes ---- */
   panel: null, // 'detail' | 'edit' | 'routes' | 'checklist' | 'menu'
+  panelFrom: null, // the list we drilled in from, for the back arrow
   selectedId: null,
   editingId: null, // null when creating a new point
   pendingLatLng: null,
@@ -285,6 +286,7 @@ export const useStore = create((set, get) => ({
     get().endMove(false)
     set({
       panel: null,
+      panelFrom: null,
       selectedId: null,
       editingId: null,
       pendingLatLng: null,
@@ -293,6 +295,19 @@ export const useStore = create((set, get) => ({
   },
   openDetail(id) {
     set({ panel: 'detail', selectedId: id, editingId: null })
+  },
+
+  /* Drilling from a list into one of its items used to replace the list with
+     no way back — you tapped a stop in a route and the route was simply gone.
+     `from` remembers where you came from so the header can offer a back arrow.
+     Deliberately one level: this is a drill-in, not a browser history. */
+  drillTo(id, from) {
+    set({ panel: 'detail', selectedId: id, editingId: null, panelFrom: from })
+  },
+  popPanel() {
+    const from = get().panelFrom
+    if (!from) return get().closePanel()
+    set({ panel: from, panelFrom: null, selectedId: null, editingId: null })
   },
   openEdit(id) {
     set({ panel: 'edit', editingId: id ?? null, selectedId: id ?? null })
