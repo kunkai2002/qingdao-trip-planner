@@ -33,6 +33,9 @@ export function MenuPanel({
   onReset,
   onOpenDetail,
   onReplayIntro,
+  install,
+  onInstall,
+  storage,
 }) {
   const fileRef = useRef(null)
   const booking = points.filter((p) => p.booking)
@@ -94,6 +97,50 @@ export function MenuPanel({
           </span>
         </GlassCard>
       ))}
+
+      <SectionTitle icon="pinPlus">装到手机上</SectionTitle>
+      {install.installed ? (
+        <div className="callout callout--good" style={{ marginTop: 0 }}>
+          <span className="callout__icon">
+            <Icon name="checkCircle" size={16} />
+          </span>
+          <span>
+            已经作为应用运行。
+            {storage?.persisted
+              ? '存储已设为常驻，系统不会在空间不足时清掉你的行程。'
+              : '建议偶尔导出一次备份。'}
+          </span>
+        </div>
+      ) : (
+        <>
+          <div className="callout callout--info" style={{ marginTop: 0 }}>
+            <span className="callout__icon">
+              <Icon name="info" size={16} />
+            </span>
+            <span>
+              装上之后就是一个独立的安卓应用：桌面有图标、全屏无地址栏、离线也能打开界面，
+              而且会自动更新。行程数据也更不容易被系统清掉。
+            </span>
+          </div>
+          <div className="actions" style={{ marginTop: 10 }}>
+            <GlassButton
+              variant="primary"
+              className="btn"
+              disabled={!install.canInstall}
+              onClick={onInstall}
+            >
+              <Icon name="pinPlus" size={16} />
+              {install.canInstall ? '安装到手机' : '在手机浏览器中打开'}
+            </GlassButton>
+          </div>
+          {!install.canInstall && (
+            <p className="footnote" style={{ marginTop: 8 }}>
+              电脑上看不到安装按钮是正常的。用安卓手机的 Chrome 打开本页，
+              这里就会出现「安装到手机」；也可以直接用浏览器菜单里的「安装应用 / 添加到主屏幕」。
+            </p>
+          )}
+        </>
+      )}
 
       <SectionTitle icon="database">数据</SectionTitle>
       <div className="actions" style={{ marginTop: 0 }}>

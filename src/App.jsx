@@ -1,10 +1,11 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useStore, routeCoords, routeDistance } from './store/useStore.js'
 import { runSearch, countByCat } from './lib/search.js'
 import { CATS, CAT_ORDER } from './data/categories.js'
 import { PRESET_ROUTES } from './data/routes.js'
 import { initGlassPointer } from './lib/glassPointer.js'
+import { useInstallPrompt, requestPersistentStorage } from './lib/install.js'
 import { useIsDesktop } from './lib/useMediaQuery.js'
 import { T } from './lib/motion.js'
 
@@ -58,9 +59,16 @@ export default function App() {
   const mapRef = useRef(null)
   const desktop = useIsDesktop()
 
+  const install = useInstallPrompt()
+  const [storageState, setStorageState] = useState(null)
+
   /* ---------------- boot ---------------- */
   useEffect(() => {
     s.init()
+    /* Ask for durable storage up front. The trip only exists in localStorage,
+       and without this grant the browser is free to evict it under storage
+       pressure. Chrome grants it silently for installed or well-used sites. */
+    requestPersistentStorage().then(setStorageState)
     return initGlassPointer()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -412,6 +420,16 @@ export default function App() {
         onExport={s.exportData}
         onImport={handleImport}
         onReset={handleResetData}
+        install={install}
+        storage={storageState}
+        onInstall={async () => {
+          const outcome = await install.install()
+          if (outcome === 'accepted') {
+            const p = await requestPersistentStorage()
+            setStorageState(p)
+            s.notify('已安装到手机，行程数据也更安全了', 'good', 'checkCircle')
+          }
+        }}
         onOpenDetail={(id) => s.drillTo(id, 'menu')}
         onReplayIntro={() => {
           s.closePanel()

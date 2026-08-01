@@ -1,0 +1,134 @@
+name: Build Android APK
+
+# Manual only. The web app is the product; this wraps it as a sideloadable APK
+# for passing around directly (WeChat, a USB cable), which matters where the
+# Play Store is not used.
+#
+# Nothing is needed locally: Ubuntu runners already have a JDK and the Android
+# SDK, which is the whole reason this runs in CI rather than on the dev machine.
+on:
+  workflow_dispatch:
+    inputs:
+      app_version:
+        description: 'versionName shown in Android settings'
+        required: false
+        default: '1.0.0'
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Bubblewrap
+        run: npm i -g @bubblewrap/cli@latest
+
+      # A stable signing key matters: Android refuses to install an update
+      # signed with a different key, so a key generated fresh each run would
+      # force an uninstall for every upgrade. Provide ANDROID_KEYSTORE (base64)
+      # + the three passwords as repository secrets to get a stable one;
+      # without them this falls back to a throwaway key and says so.
+      - name: Restore signing key
+        id: key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > android.keystore
+            echo "stable=true" >> "$GITHUB_OUTPUT"
+          else
+            keytool -genkeypair -v -keystore android.keystore \
+              -alias qingdao -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass throwaway -keypass throwaway \
+              -dname "CN=Qingdao Trip Planner, OU=personal, O=personal, C=CN"
+            echo "stable=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Initialise the TWA project
+        env:
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'throwaway' }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD || 'throwaway' }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'qingdao' }}
+          APP_VERSION: ${{ inputs.app_version }}
+        run: |
+          bubblewrap init \
+            --manifest="https://kunkai2002.github.io/qingdao-trip-planner/manifest.webmanifest" \
+            --directory=twa \
+            --chromeosonly=false \
+            --alphaDependencies=false \
+            --skipPwaValidation=false <<'ANSWERS' || true
+          ANSWERS
+        continue-on-error: true
+
+      # bubblewrap init is interactive; drive it from a config instead.
+      - name: Write bubblewrap config
+        run: |
+          mkdir -p twa
+          cat > twa/twa-manifest.json <<JSON
+          {
+            "packageId": "io.github.kunkai2002.qingdao",
+            "host": "kunkai2002.github.io",
+            "name": "青岛一图流",
+            "launcherName": "青岛一图流",
+            "display": "standalone",
+            "themeColor": "#101b21",
+            "navigationColor": "#101b21",
+            "backgroundColor": "#e7eef1",
+            "startUrl": "/qingdao-trip-planner/",
+            "iconUrl": "https://kunkai2002.github.io/qingdao-trip-planner/icon-512.png",
+            "maskableIconUrl": "https://kunkai2002.github.io/qingdao-trip-planner/icon-maskable-512.png",
+            "appVersionName": "${{ inputs.app_version }}",
+            "appVersionCode": ${{ github.run_number }},
+            "shortcuts": [],
+            "generatorApp": "bubblewrap-cli",
+            "webManifestUrl": "https://kunkai2002.github.io/qingdao-trip-planner/manifest.webmanifest",
+            "fallbackType": "customtabs",
+            "enableNotifications": false,
+            "isChromeOSOnly": false,
+            "isMetaQuest": false,
+            "fullScopeUrl": "https://kunkai2002.github.io/qingdao-trip-planner/",
+            "minSdkVersion": 23,
+            "signingKey": { "path": "../android.keystore", "alias": "${{ secrets.ANDROID_KEY_ALIAS || 'qingdao' }}" }
+          }
+          JSON
+
+      - name: Build the APK
+        working-directory: twa
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'throwaway' }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || 'throwaway' }}
+        run: |
+          yes | bubblewrap update --skipVersionUpgrade || true
+          bubblewrap build --skipPwaValidation
+
+      - name: Report the signing fingerprint
+        working-directory: twa
+        run: |
+          echo "Add this SHA-256 to assetlinks.json so the URL bar stays hidden:"
+          keytool -list -v -keystore ../android.keystore -alias "${{ secrets.ANDROID_KEY_ALIAS || 'qingdao' }}" \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'throwaway' }}" | grep -A1 "SHA256:" || true
+          if [ "${{ steps.key.outputs.stable }}" != "true" ]; then
+            echo "::warning::Built with a THROWAWAY key. It installs fine, but the next build cannot upgrade over it — you would have to uninstall first. Add the ANDROID_KEYSTORE secret for a stable key."
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qingdao-apk
+          path: |
+            twa/app-release-signed.apk
+            twa/app-release-bundle.aab
+          if-no-files-found: warn
+          retention-days: 30

@@ -18,3 +18,15 @@ createRoot(document.getElementById('root')).render(
     </ErrorBoundary>
   </StrictMode>,
 )
+
+/* Registered after load so it never competes with first paint. Only in a real
+   build: under `vite dev` the worker would serve stale modules and make HMR
+   behave bizarrely. */
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {
+      /* an unavailable worker only costs offline support and the install
+         prompt — it must never break the page */
+    })
+  })
+}
